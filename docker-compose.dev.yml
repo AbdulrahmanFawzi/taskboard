@@ -1,12 +1,20 @@
-# Local development only: a Postgres for `dotnet run`. Staging and production use deploy/.
+# Local development only. Production and staging use the organisation's Oracle 19c server.
+# Oracle Free (23ai) stands in for 19c here; the API is pinned to 19c-compatible SQL
+# (Database:OracleSqlCompatibility), so nothing newer than 19c is generated.
 services:
-  db:
-    image: postgres:16
+  oracle:
+    image: gvenzl/oracle-free:23-slim
     environment:
-      POSTGRES_DB: taskboard
-      POSTGRES_USER: taskboard
-      POSTGRES_PASSWORD: taskboard-dev
-    ports: ["127.0.0.1:5432:5432"]
-    volumes: [devdata:/var/lib/postgresql/data]
+      ORACLE_PASSWORD: oracle-dev-sys
+      APP_USER: taskboard
+      APP_USER_PASSWORD: taskboard-dev
+    ports: ["127.0.0.1:1521:1521"]
+    volumes: [oradata:/opt/oracle/oradata]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
 volumes:
-  devdata:
+  oradata:

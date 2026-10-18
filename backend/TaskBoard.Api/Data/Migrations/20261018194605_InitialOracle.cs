@@ -1,13 +1,12 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
 namespace TaskBoard.Api.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialOracle : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -16,10 +15,10 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetRoles",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Name = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Name = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: true),
+                    NormalizedName = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -30,24 +29,24 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetUsers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    DisplayName = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
-                    AvatarColor = table.Column<string>(type: "text", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    EmailConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    PasswordHash = table.Column<string>(type: "text", nullable: true),
-                    SecurityStamp = table.Column<string>(type: "text", nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "text", nullable: true),
-                    PhoneNumber = table.Column<string>(type: "text", nullable: true),
-                    PhoneNumberConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    TwoFactorEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    LockoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    AccessFailedCount = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    DisplayName = table.Column<string>(type: "NVARCHAR2(80)", maxLength: 80, nullable: false),
+                    AvatarColor = table.Column<string>(type: "NVARCHAR2(2000)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false),
+                    UserName = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: true),
+                    NormalizedUserName = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: true),
+                    EmailConfirmed = table.Column<bool>(type: "NUMBER(1)", nullable: false),
+                    PasswordHash = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    SecurityStamp = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    PhoneNumberConfirmed = table.Column<bool>(type: "NUMBER(1)", nullable: false),
+                    TwoFactorEnabled = table.Column<bool>(type: "NUMBER(1)", nullable: false),
+                    LockoutEnd = table.Column<DateTimeOffset>(type: "TIMESTAMP(7) WITH TIME ZONE", nullable: true),
+                    LockoutEnabled = table.Column<bool>(type: "NUMBER(1)", nullable: false),
+                    AccessFailedCount = table.Column<int>(type: "NUMBER(10)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -58,10 +57,10 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "DataProtectionKeys",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    FriendlyName = table.Column<string>(type: "text", nullable: true),
-                    Xml = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<int>(type: "NUMBER(10)", nullable: false)
+                        .Annotation("Oracle:Identity", "START WITH 1 INCREMENT BY 1"),
+                    FriendlyName = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    Xml = table.Column<string>(type: "NCLOB", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -72,10 +71,10 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Workspaces",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Name = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
-                    AccentColor = table.Column<string>(type: "character varying(9)", maxLength: 9, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Name = table.Column<string>(type: "NVARCHAR2(80)", maxLength: 80, nullable: false),
+                    AccentColor = table.Column<string>(type: "NVARCHAR2(9)", maxLength: 9, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -86,11 +85,11 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    RoleId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ClaimType = table.Column<string>(type: "text", nullable: true),
-                    ClaimValue = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<int>(type: "NUMBER(10)", nullable: false)
+                        .Annotation("Oracle:Identity", "START WITH 1 INCREMENT BY 1"),
+                    RoleId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    ClaimType = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -107,11 +106,11 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetUserClaims",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ClaimType = table.Column<string>(type: "text", nullable: true),
-                    ClaimValue = table.Column<string>(type: "text", nullable: true)
+                    Id = table.Column<int>(type: "NUMBER(10)", nullable: false)
+                        .Annotation("Oracle:Identity", "START WITH 1 INCREMENT BY 1"),
+                    UserId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    ClaimType = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    ClaimValue = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -128,10 +127,10 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetUserLogins",
                 columns: table => new
                 {
-                    LoginProvider = table.Column<string>(type: "text", nullable: false),
-                    ProviderKey = table.Column<string>(type: "text", nullable: false),
-                    ProviderDisplayName = table.Column<string>(type: "text", nullable: true),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false)
+                    LoginProvider = table.Column<string>(type: "NVARCHAR2(450)", nullable: false),
+                    ProviderKey = table.Column<string>(type: "NVARCHAR2(450)", nullable: false),
+                    ProviderDisplayName = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true),
+                    UserId = table.Column<Guid>(type: "RAW(16)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -148,8 +147,8 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetUserRoles",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RoleId = table.Column<Guid>(type: "uuid", nullable: false)
+                    UserId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    RoleId = table.Column<Guid>(type: "RAW(16)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -172,10 +171,10 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "AspNetUserTokens",
                 columns: table => new
                 {
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    LoginProvider = table.Column<string>(type: "text", nullable: false),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Value = table.Column<string>(type: "text", nullable: true)
+                    UserId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    LoginProvider = table.Column<string>(type: "NVARCHAR2(450)", nullable: false),
+                    Name = table.Column<string>(type: "NVARCHAR2(450)", nullable: false),
+                    Value = table.Column<string>(type: "NVARCHAR2(2000)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -192,13 +191,13 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Activity",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    WorkspaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TaskId = table.Column<Guid>(type: "uuid", nullable: true),
-                    ActorId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Type = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
-                    Summary = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    WorkspaceId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    TaskId = table.Column<Guid>(type: "RAW(16)", nullable: true),
+                    ActorId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Type = table.Column<string>(type: "NVARCHAR2(40)", maxLength: 40, nullable: false),
+                    Summary = table.Column<string>(type: "NVARCHAR2(300)", maxLength: 300, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -221,11 +220,11 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Columns",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    WorkspaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Name = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
-                    Kind = table.Column<int>(type: "integer", nullable: false),
-                    Position = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    WorkspaceId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Name = table.Column<string>(type: "NVARCHAR2(40)", maxLength: 40, nullable: false),
+                    Kind = table.Column<int>(type: "NUMBER(10)", nullable: false),
+                    Position = table.Column<int>(type: "NUMBER(10)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -242,15 +241,15 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Invitations",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    WorkspaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    Role = table.Column<int>(type: "integer", nullable: false),
-                    Token = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    InvitedById = table.Column<Guid>(type: "uuid", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    AcceptedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    WorkspaceId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Email = table.Column<string>(type: "NVARCHAR2(256)", maxLength: 256, nullable: false),
+                    Role = table.Column<int>(type: "NUMBER(10)", nullable: false),
+                    Token = table.Column<string>(type: "NVARCHAR2(64)", maxLength: 64, nullable: false),
+                    InvitedById = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false),
+                    AcceptedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -267,11 +266,11 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Projects",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    WorkspaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Name = table.Column<string>(type: "character varying(80)", maxLength: 80, nullable: false),
-                    Color = table.Column<string>(type: "text", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    WorkspaceId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Name = table.Column<string>(type: "NVARCHAR2(80)", maxLength: 80, nullable: false),
+                    Color = table.Column<string>(type: "NVARCHAR2(2000)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -288,10 +287,10 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "WorkspaceMembers",
                 columns: table => new
                 {
-                    WorkspaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Role = table.Column<int>(type: "integer", nullable: false),
-                    JoinedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    WorkspaceId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    UserId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Role = table.Column<int>(type: "NUMBER(10)", nullable: false),
+                    JoinedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -314,22 +313,22 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Tasks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    WorkspaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ColumnId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ProjectId = table.Column<Guid>(type: "uuid", nullable: true),
-                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "character varying(10000)", maxLength: 10000, nullable: false),
-                    Tag = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
-                    Priority = table.Column<int>(type: "integer", nullable: false),
-                    DueDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    Position = table.Column<int>(type: "integer", nullable: false),
-                    TrackedMinutes = table.Column<int>(type: "integer", nullable: false),
-                    CreatedById = table.Column<Guid>(type: "uuid", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    StartedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    CompletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    WorkspaceId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    ColumnId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    ProjectId = table.Column<Guid>(type: "RAW(16)", nullable: true),
+                    Title = table.Column<string>(type: "NVARCHAR2(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "NCLOB", maxLength: 10000, nullable: true),
+                    Tag = table.Column<string>(type: "NVARCHAR2(30)", maxLength: 30, nullable: true),
+                    Priority = table.Column<int>(type: "NUMBER(10)", nullable: false),
+                    DueDate = table.Column<DateTime>(type: "DATE", nullable: true),
+                    Position = table.Column<int>(type: "NUMBER(10)", nullable: false),
+                    TrackedMinutes = table.Column<int>(type: "NUMBER(10)", nullable: false),
+                    CreatedById = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -358,11 +357,11 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "ChecklistItems",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TaskId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Text = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
-                    Done = table.Column<bool>(type: "boolean", nullable: false),
-                    Position = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    TaskId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Text = table.Column<string>(type: "NVARCHAR2(300)", maxLength: 300, nullable: false),
+                    Done = table.Column<bool>(type: "NUMBER(1)", nullable: false),
+                    Position = table.Column<int>(type: "NUMBER(10)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -379,11 +378,11 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "Comments",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    TaskId = table.Column<Guid>(type: "uuid", nullable: false),
-                    AuthorId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Body = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Id = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    TaskId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    AuthorId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    Body = table.Column<string>(type: "NCLOB", maxLength: 4000, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TIMESTAMP(7)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -406,8 +405,8 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "TaskAssignees",
                 columns: table => new
                 {
-                    TaskId = table.Column<Guid>(type: "uuid", nullable: false),
-                    UserId = table.Column<Guid>(type: "uuid", nullable: false)
+                    TaskId = table.Column<Guid>(type: "RAW(16)", nullable: false),
+                    UserId = table.Column<Guid>(type: "RAW(16)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -445,7 +444,8 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "RoleNameIndex",
                 table: "AspNetRoles",
                 column: "NormalizedName",
-                unique: true);
+                unique: true,
+                filter: "\"NormalizedName\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetUserClaims_UserId",
@@ -471,7 +471,8 @@ namespace TaskBoard.Api.Data.Migrations
                 name: "UserNameIndex",
                 table: "AspNetUsers",
                 column: "NormalizedUserName",
-                unique: true);
+                unique: true,
+                filter: "\"NormalizedUserName\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ChecklistItems_TaskId",

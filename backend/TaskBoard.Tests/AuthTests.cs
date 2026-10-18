@@ -46,7 +46,7 @@ public class AuthTests(TestApp app) : IClassFixture<TestApp>
 
         User.Status(HttpStatusCode.BadRequest, await device.Post("/api/auth/login/2fa", new { code = "123456" }));
 
-        var step2 = await device.PostOk<LoginResponse>("/api/auth/login/2fa", new { code = first.Code(1) });
+        var step2 = await device.PostOk<LoginResponse>("/api/auth/login/2fa", new { code = first.Code() });
         Assert.True(step2.User!.SessionVerified);
         User.Status(HttpStatusCode.OK, await device.Http.GetAsync("/api/workspaces"));
     }
@@ -84,7 +84,7 @@ public class AuthTests(TestApp app) : IClassFixture<TestApp>
     public async Task Two_factor_cannot_be_turned_off_when_required()
     {
         var user = await app.NewClient().SignUpAsync();
-        User.Status(HttpStatusCode.Forbidden, await user.Post("/api/auth/2fa/disable", new { code = user.Code(1) }));
+        User.Status(HttpStatusCode.Forbidden, await user.Post("/api/auth/2fa/disable", new { code = user.Code() }));
     }
 
     [Fact]

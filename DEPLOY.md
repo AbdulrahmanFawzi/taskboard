@@ -1,9 +1,9 @@
 # دليل النشر: Staging ثم Production
 
-كل بيئة تتكون من أربع حاويات Docker:
+كل بيئة تتكون من ثلاث حاويات Docker، وقاعدة البيانات على خادم Oracle 19c الخاص بالجهة:
 
 ```
-الإنترنت → Caddy (HTTPS وشهادة مجانية تلقائية) → nginx (الواجهة + تمرير /api) → API (.NET) → PostgreSQL
+الإنترنت → Caddy (HTTPS وشهادة مجانية تلقائية) → nginx (الواجهة + تمرير /api) → API (.NET) → Oracle 19c (خارج Docker)
 ```
 
 البيئتين تستخدمان نفس الملف `deploy/docker-compose.yml`، والفرق بينهم في ملف الإعدادات
@@ -16,11 +16,32 @@
 | سيرفر Linux (Ubuntu 24.04) | 2 CPU / 2GB RAM يكفي | 2 CPU / 4GB RAM أو أكثر |
 | اسم نطاق (Domain) | مثلاً `staging.taskboard.company.com` | مثلاً `taskboard.company.com` |
 | منافذ مفتوحة | 80 و 443 (و 22 لـ SSH) | 80 و 443 (و 22 لـ SSH) |
+| Oracle 19c | مستخدم (schema) مستقل للـ staging | مستخدم (schema) مستقل للـ production |
+| وصول الشبكة | السيرفر يوصل لخادم Oracle على المنفذ 1521 | نفسه |
 
 لازم يكون سيرفر production منفصل عن staging. وإذا ما عندكم إلا سيرفر واحد، شغّلوا البيئتين عليه
-بأسماء مشاريع مختلفة. البيانات تبقى منفصلة لأن الأوامر تستخدم `-p taskboard-staging` و `-p taskboard-production`.
+بأسماء مشاريع مختلفة (`-p taskboard-staging` و `-p taskboard-production`)، ومع مستخدم Oracle مختلف لكل بيئة.
 
-## 2. تجهيز السيرفر (مرة وحدة)
+## 2. تجهيز قاعدة البيانات Oracle 19c (يسويها الـ DBA مرة وحدة)
+
+اطلب من الـ DBA ينشئ مستخدم لكل بيئة. مثال لـ production:
+
+```sql
+CREATE USER TASKBOARD IDENTIFIED BY "<كلمة سر قوية>"
+  DEFAULT TABLESPACE USERS QUOTA 2G ON USERS;
+GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE, CREATE PROCEDURE TO TASKBOARD;
+```
+
+ملاحظات:
+
+- قاعدة البيانات لازم تكون بترميز **AL32UTF8** (أو NCHAR بـ AL16UTF16، وهو الافتراضي) عشان النصوص العربية. التطبيق يخزّن النصوص في أعمدة `NVARCHAR2` و `NCLOB`.
+- عندك طريقتين لإنشاء الجداول:
+  - **تلقائي** (`DB_APPLY_MIGRATIONS=true`): التطبيق ينشئ الجداول ويحدّثها أول ما يشتغل، ويحتاج الصلاحيات اللي فوق.
+  - **يدوي عن طريق الـ DBA** (`DB_APPLY_MIGRATIONS=false`): الـ DBA يشغّل `deploy/oracle/schema.sql` قبل كل إصدار. الملف آمن للتشغيل أكثر من مرة لأنه يتخطى اللي انطبق قبل. وفي هالحالة يكفي المستخدم صلاحية `CREATE SESSION` مع صلاحيات القراءة والكتابة على جداوله.
+- لو حدّث المطوّرين قاعدة البيانات، يطلّعون الملف من جديد بهالأمر:
+  `dotnet ef migrations script --idempotent -p backend/TaskBoard.Api -o deploy/oracle/schema.sql`
+
+## 3. تجهيز السيرفر (مرة وحدة)
 
 ```bash
 # Docker
@@ -37,11 +58,10 @@ cd ~/taskboard/deploy
 
 وجّه سجل DNS من نوع A لاسم النطاق إلى IP السيرفر **قبل** التشغيل، لأن Caddy يطلب الشهادة أول ما يشتغل.
 
-## 3. ملف الإعدادات
+## 4. ملف الإعدادات
 
 ```bash
 cp .env.example .env.staging          # أو .env.production
-openssl rand -base64 32               # انسخ الناتج إلى POSTGRES_PASSWORD
 nano .env.staging
 ```
 
@@ -50,7 +70,8 @@ nano .env.staging
 | `DOMAIN` | `staging.taskboard.company.com` | `taskboard.company.com` |
 | `APP_ENV` | `Staging` | `Production` |
 | `AUTHENTICATOR_ISSUER` | `TaskBoard (staging)` | `TaskBoard` |
-| `POSTGRES_PASSWORD` | كلمة سر قوية | كلمة سر قوية **مختلفة** |
+| `ORACLE_CONNECTION` | `User Id=TASKBOARD_STG;Password=…;Data Source=oracle-host:1521/STGPDB` | `User Id=TASKBOARD;Password=…;Data Source=oracle-host:1521/PRODPDB` |
+| `DB_APPLY_MIGRATIONS` | `true` | `true` أو `false` حسب سياسة الـ DBA |
 | `REGISTRY` | `ghcr.io/<اسم المنظمة>` | نفسه |
 
 اسم الـ issuer المختلف يخلّي حساب staging يظهر منفصل في تطبيق المصادقة على الجوال،
@@ -58,7 +79,7 @@ nano .env.staging
 
 لا ترفع ملفات `.env.staging` و `.env.production` على git، لأنها موجودة في `.gitignore`.
 
-## 4. النشر
+## 5. النشر
 
 ### تلقائياً من GitHub Actions (المفضّل)
 
@@ -84,9 +105,10 @@ cd ~/taskboard/deploy
 ./deploy.sh production <tag>
 ```
 
-## 5. قائمة الفحص على staging قبل production
+## 6. قائمة الفحص على staging قبل production
 
-- [ ] `https://<staging>/health` يرجّع `Healthy`
+- [ ] `https://<staging>/health` يرجّع `Healthy`، يعني الاتصال بـ Oracle شغّال
+- [ ] `python3 -I scripts/staging_smoke.py https://<staging>` يطلع كله PASS
 - [ ] تسجيل حساب جديد يحوّلك مباشرة لصفحة تفعيل 2FA
 - [ ] مسح QR بتطبيق المصادقة وإدخال الرمز يفعّل 2FA ويعرض 10 رموز استرداد
 - [ ] تسجيل الخروج ثم الدخول يطلب الرمز بعد كلمة السر
@@ -98,20 +120,15 @@ cd ~/taskboard/deploy
 - [ ] تغيير اللون من Settings يغيّر الواجهة كاملة
 - [ ] تصدير CSV ينزل الملف ويفتح في Excel
 
-## 6. النسخ الاحتياطي والاسترجاع
+## 7. النسخ الاحتياطي
+
+النسخ الاحتياطي على مسؤولية الـ DBA ضمن نسخ خادم Oracle (RMAN). ولو تبغى نسخة خاصة بهذا الـ schema، فيه سكربت يصدّرها بـ Data Pump إذا كانت أدوات Oracle مثبتة على السيرفر:
 
 ```bash
-./backup.sh production                       # backups/production-<التاريخ>.sql.gz ، ويحتفظ بآخر 14 نسخة
-# جدولة يومية الساعة 3 الفجر:
-(crontab -l; echo "0 3 * * * cd ~/taskboard/deploy && ./backup.sh production") | crontab -
-
-# الاسترجاع:
-gunzip -c backups/production-XXXX.sql.gz | docker compose -p taskboard-production --env-file .env.production exec -T db psql -U taskboard -d taskboard
+./backup.sh production     # expdp للـ schema إلى DATA_PUMP_DIR
 ```
 
-انسخوا مجلد `backups/` لمكان ثاني برّا السيرفر، مثل S3 أو تخزين الشركة.
-
-## 7. أوامر مفيدة
+## 8. أوامر مفيدة
 
 ```bash
 docker compose -p taskboard-production --env-file .env.production ps          # حالة الحاويات
@@ -119,4 +136,4 @@ docker compose -p taskboard-production --env-file .env.production logs -f api # 
 ./deploy.sh production <tag-سابق>                                             # رجوع لنسخة سابقة
 ```
 
-قاعدة البيانات تتحدّث تلقائياً (EF migrations) أول ما يشتغل الـ API، وكل نشر ياخذ نسخة احتياطية قبلها.
+إذا كان `DB_APPLY_MIGRATIONS=true`، قاعدة البيانات تتحدّث تلقائياً (EF migrations) أول ما يشتغل الـ API.

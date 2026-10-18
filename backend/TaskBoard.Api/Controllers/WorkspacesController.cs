@@ -52,7 +52,7 @@ public class WorkspacesController(
     {
         var role = await access.RequireAsync(id, WorkspaceRole.Admin);
         var ws = await db.Workspaces.FirstAsync(w => w.Id == id);
-        if (req.Name is not null) ws.Name = req.Name.Trim();
+        if (!string.IsNullOrWhiteSpace(req.Name)) ws.Name = req.Name.Trim();
         if (req.AccentColor is not null) ws.AccentColor = req.AccentColor.ToLowerInvariant();
         await db.SaveChangesAsync();
         await events.ChangedAsync(id, "workspace");
@@ -92,7 +92,7 @@ public class WorkspacesController(
         var col = columns.FirstOrDefault(c => c.Id == columnId);
         if (col is null) return NotFound();
 
-        if (req.Name is not null) col.Name = req.Name.Trim();
+        if (!string.IsNullOrWhiteSpace(req.Name)) col.Name = req.Name.Trim();
         if (req.Kind is not null && req.Kind != col.Kind)
         {
             col.Kind = req.Kind.Value;
@@ -150,7 +150,7 @@ public class WorkspacesController(
         await access.RequireAsync(id, WorkspaceRole.Admin);
         var project = await db.Projects.FirstOrDefaultAsync(p => p.Id == projectId && p.WorkspaceId == id);
         if (project is null) return NotFound();
-        if (req.Name is not null) project.Name = req.Name.Trim();
+        if (!string.IsNullOrWhiteSpace(req.Name)) project.Name = req.Name.Trim();
         if (req.Color is not null) project.Color = req.Color;
         await db.SaveChangesAsync();
         await events.ChangedAsync(id, "workspace");

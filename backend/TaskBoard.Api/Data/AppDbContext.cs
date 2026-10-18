@@ -27,6 +27,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         base.OnModelCreating(b);
 
         b.Entity<AppUser>().Property(u => u.DisplayName).HasMaxLength(80);
+        // Key XML can pass 2000 characters, the NVARCHAR2 limit on a standard Oracle 19c.
+        if (Database.ProviderName?.Contains("Oracle") == true)
+            b.Entity<DataProtectionKey>().Property(k => k.Xml).HasColumnType("NCLOB");
 
         b.Entity<Workspace>(e =>
         {
@@ -56,7 +59,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<TaskItem>(e =>
         {
             e.Property(t => t.Title).HasMaxLength(200);
-            e.Property(t => t.Description).HasMaxLength(10_000);
+            // Oracle stores '' as NULL, so an empty description must be allowed to be NULL.
+            // Reads go through Mapping.ToDto, which turns it back into "".
+            e.Property(t => t.Description).HasMaxLength(10_000).IsRequired(false);
             e.Property(t => t.Tag).HasMaxLength(30);
             e.HasIndex(t => new { t.WorkspaceId, t.ColumnId, t.Position });
             e.HasOne(t => t.Column).WithMany().HasForeignKey(t => t.ColumnId).OnDelete(DeleteBehavior.Restrict);
@@ -96,11 +101,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         var utcNullable = new ValueConverter<DateTime?, DateTime?>(
             v => v == null ? v : v.Value.Kind == DateTimeKind.Utc ? v : v.Value.ToUniversalTime(),
             v => v == null ? v : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc));
+        // The Oracle provider has no DateOnly mapping; store it as a plain DATE (no time, no zone).
+        var date = new ValueConverter<DateOnly, DateTime>(d => d.ToDateTime(TimeOnly.MinValue), d => DateOnly.FromDateTime(d));
+        var dateNullable = new ValueConverter<DateOnly?, DateTime?>(
+            d => d == null ? null : d.Value.ToDateTime(TimeOnly.MinValue),
+            d => d == null ? null : DateOnly.FromDateTime(d.Value));
+        var oracle = Database.ProviderName?.Contains("Oracle") == true;
+
         foreach (var entity in b.Model.GetEntityTypes())
         foreach (var prop in entity.GetProperties())
         {
             if (prop.ClrType == typeof(DateTime)) prop.SetValueConverter(utc);
             else if (prop.ClrType == typeof(DateTime?)) prop.SetValueConverter(utcNullable);
+            else if (prop.ClrType == typeof(DateOnly) || prop.ClrType == typeof(DateOnly?))
+            {
+                prop.SetValueConverter(prop.ClrType == typeof(DateOnly) ? date : dateNullable);
+                if (oracle) prop.SetColumnType("DATE");
+            }
         }
     }
 }

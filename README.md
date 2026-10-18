@@ -7,8 +7,8 @@ board, a dashboard, analytics, and team roles, with two-factor sign-in required 
 | --- | --- |
 | API | ASP.NET Core 10, EF Core, ASP.NET Identity (cookie sessions + TOTP 2FA), SignalR |
 | Web | React 19, Vite, TypeScript, Tailwind CSS 4, dnd-kit, Recharts, Motion, Hugeicons |
-| Data | PostgreSQL 17 (SQLite in-memory for tests) |
-| Run | Docker Compose: Caddy (HTTPS) → nginx (static + proxy) → API → Postgres |
+| Data | Oracle 19c via Oracle.EntityFrameworkCore, SQL pinned to 19c (SQLite in-memory for tests) |
+| Run | Docker Compose: Caddy (HTTPS) → nginx (static + proxy) → API → the organisation's Oracle 19c |
 
 ## Features
 
@@ -45,12 +45,20 @@ board, a dashboard, analytics, and team roles, with two-factor sign-in required 
 ## Run locally
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d          # Postgres on 127.0.0.1:5432
+docker compose -f docker-compose.dev.yml up -d          # Oracle Free on 127.0.0.1:1521 (stands in for 19c)
 dotnet run --project backend/TaskBoard.Api --launch-profile http   # API on :5064, migrates on start
 npm --prefix frontend install && npm --prefix frontend run dev    # Web on :5173, proxies /api
 ```
 
-To get 2FA codes without a phone while developing: `python3 dev/totp.py "<setup key>"`.
+To get 2FA codes without a phone while developing: `python3 scripts/totp.py "<setup key>"`.
+
+## Oracle notes
+
+- Oracle stores `''` as NULL, so card descriptions are nullable in the database and mapped back
+  to `""` when read; other text fields reject blank values before they reach the database.
+- `DateOnly` is stored as `DATE`; long text (description, comments, data-protection keys) as `NCLOB`.
+- `deploy/oracle/schema.sql` is the idempotent schema script for DBAs who apply changes themselves
+  (`Database:ApplyMigrations=false`).
 
 ## Tests
 
@@ -58,7 +66,8 @@ To get 2FA codes without a phone while developing: `python3 dev/totp.py "<setup 
 dotnet test
 ```
 
-Covers sign-up gating, 2FA enrolment and sign-in, recovery codes, lockout, rate limiting, CSRF,
+Unit and integration tests run on SQLite. `python3 -I scripts/staging_smoke.py <url>` runs 19
+end-to-end checks against a running server on Oracle. It covers sign-up gating, 2FA enrolment and sign-in, recovery codes, lockout, rate limiting, CSRF,
 board ordering and completion, roles and invitations, dashboard and analytics maths, CSV export.
 
 ## Deploy

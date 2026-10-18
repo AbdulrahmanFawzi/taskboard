@@ -1,0 +1,11 @@
+dev/
+node_modules/
+dist/
+bin/
+obj/
+.env.staging
+.env.production
+deploy/backups/
+*.user
+.DS_Store
+.claude/

@@ -1,0 +1,122 @@
+# دليل النشر: Staging ثم Production
+
+كل بيئة تتكون من أربع حاويات Docker:
+
+```
+الإنترنت → Caddy (HTTPS وشهادة مجانية تلقائية) → nginx (الواجهة + تمرير /api) → API (.NET) → PostgreSQL
+```
+
+البيئتين تستخدمان نفس الملف `deploy/docker-compose.yml`، والفرق بينهم في ملف الإعدادات
+(`.env.staging` و `.env.production`).
+
+## 1. وش تحتاج قبل ما تبدأ
+
+| الشي | Staging | Production |
+| --- | --- | --- |
+| سيرفر Linux (Ubuntu 24.04) | 2 CPU / 2GB RAM يكفي | 2 CPU / 4GB RAM أو أكثر |
+| اسم نطاق (Domain) | مثلاً `staging.taskboard.company.com` | مثلاً `taskboard.company.com` |
+| منافذ مفتوحة | 80 و 443 (و 22 لـ SSH) | 80 و 443 (و 22 لـ SSH) |
+
+لازم يكون سيرفر production منفصل عن staging. وإذا ما عندكم إلا سيرفر واحد، شغّلوا البيئتين عليه
+بأسماء مشاريع مختلفة. البيانات تبقى منفصلة لأن الأوامر تستخدم `-p taskboard-staging` و `-p taskboard-production`.
+
+## 2. تجهيز السيرفر (مرة وحدة)
+
+```bash
+# Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER   # بعدها اطلع وادخل مرة ثانية
+
+# جدار الحماية
+sudo ufw allow OpenSSH && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+
+# نسخة من المشروع
+git clone <رابط المستودع> ~/taskboard
+cd ~/taskboard/deploy
+```
+
+وجّه سجل DNS من نوع A لاسم النطاق إلى IP السيرفر **قبل** التشغيل، لأن Caddy يطلب الشهادة أول ما يشتغل.
+
+## 3. ملف الإعدادات
+
+```bash
+cp .env.example .env.staging          # أو .env.production
+openssl rand -base64 32               # انسخ الناتج إلى POSTGRES_PASSWORD
+nano .env.staging
+```
+
+| المتغير | Staging | Production |
+| --- | --- | --- |
+| `DOMAIN` | `staging.taskboard.company.com` | `taskboard.company.com` |
+| `APP_ENV` | `Staging` | `Production` |
+| `AUTHENTICATOR_ISSUER` | `TaskBoard (staging)` | `TaskBoard` |
+| `POSTGRES_PASSWORD` | كلمة سر قوية | كلمة سر قوية **مختلفة** |
+| `REGISTRY` | `ghcr.io/<اسم المنظمة>` | نفسه |
+
+اسم الـ issuer المختلف يخلّي حساب staging يظهر منفصل في تطبيق المصادقة على الجوال،
+فما تختلط الرموز بين البيئتين.
+
+لا ترفع ملفات `.env.staging` و `.env.production` على git، لأنها موجودة في `.gitignore`.
+
+## 4. النشر
+
+### تلقائياً من GitHub Actions (المفضّل)
+
+الملف `.github/workflows/ci.yml` يمشي بهالترتيب:
+
+1. يشغّل الاختبارات ويبني الواجهة مع كل push.
+2. على `master` يبني صور Docker ويرفعها إلى GHCR.
+3. ينشر على **staging** ويسوي فحص سريع للتأكد إنه شغّال.
+4. يوقف وينتظر موافقة شخص، وبعد الموافقة ينشر على **production**.
+
+جهّز في GitHub (Settings → Environments):
+
+- بيئتين اسمهم `staging` و `production`. فعّل **Required reviewers** على `production`،
+  عشان ما ينزل شي على production إلا بعد ما أحد يجرّب staging ويوافق.
+- Secrets: `STAGING_HOST`، `PRODUCTION_HOST`، `DEPLOY_USER`، `DEPLOY_SSH_KEY`.
+- Variables: `STAGING_DOMAIN`، `PRODUCTION_DOMAIN`.
+
+### يدوياً على السيرفر
+
+```bash
+cd ~/taskboard/deploy
+./deploy.sh staging <tag>       # ياخذ نسخة احتياطية، يسحب الصور، يشغّل، وينتظر الـ health check
+./deploy.sh production <tag>
+```
+
+## 5. قائمة الفحص على staging قبل production
+
+- [ ] `https://<staging>/health` يرجّع `Healthy`
+- [ ] تسجيل حساب جديد يحوّلك مباشرة لصفحة تفعيل 2FA
+- [ ] مسح QR بتطبيق المصادقة وإدخال الرمز يفعّل 2FA ويعرض 10 رموز استرداد
+- [ ] تسجيل الخروج ثم الدخول يطلب الرمز بعد كلمة السر
+- [ ] الدخول برمز استرداد يشتغل مرة وحدة بس
+- [ ] 5 محاولات خاطئة تقفل الحساب 10 دقائق
+- [ ] إنشاء مساحة عمل بالبيانات التجريبية، وفتح Dashboard و Analytics
+- [ ] سحب كرت بين الأعمدة، وفتح المتصفح الثاني والتأكد إن التغيير يظهر فيه مباشرة
+- [ ] دعوة مستخدم ثاني بدور Viewer والتأكد إنه ما يقدر يعدّل
+- [ ] تغيير اللون من Settings يغيّر الواجهة كاملة
+- [ ] تصدير CSV ينزل الملف ويفتح في Excel
+
+## 6. النسخ الاحتياطي والاسترجاع
+
+```bash
+./backup.sh production                       # backups/production-<التاريخ>.sql.gz ، ويحتفظ بآخر 14 نسخة
+# جدولة يومية الساعة 3 الفجر:
+(crontab -l; echo "0 3 * * * cd ~/taskboard/deploy && ./backup.sh production") | crontab -
+
+# الاسترجاع:
+gunzip -c backups/production-XXXX.sql.gz | docker compose -p taskboard-production --env-file .env.production exec -T db psql -U taskboard -d taskboard
+```
+
+انسخوا مجلد `backups/` لمكان ثاني برّا السيرفر، مثل S3 أو تخزين الشركة.
+
+## 7. أوامر مفيدة
+
+```bash
+docker compose -p taskboard-production --env-file .env.production ps          # حالة الحاويات
+docker compose -p taskboard-production --env-file .env.production logs -f api # سجلات الـ API
+./deploy.sh production <tag-سابق>                                             # رجوع لنسخة سابقة
+```
+
+قاعدة البيانات تتحدّث تلقائياً (EF migrations) أول ما يشتغل الـ API، وكل نشر ياخذ نسخة احتياطية قبلها.

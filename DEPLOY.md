@@ -106,6 +106,10 @@ cd ~/taskboard/deploy
 ./deploy.sh production <tag>
 ```
 
+### أول حساب في المنصة
+
+التسجيل في المنصة يكون بالدعوة فقط. يُستثنى من هذا **أول حساب**: افتح `https://<الدومين>/register` مباشرة بعد التشغيل، وأنشئ حساب المسؤول، وبعدها أنشئ أول مساحة عمل. من هنا، أي شخص جديد يدخل برابط دعوة، وإنشاء مساحات العمل يكون للمالك والمشرف فقط. لو تبغى ترجع التسجيل مفتوح، أو تخلي إنشاء المساحات متاح للكل، استخدم `Security__InviteOnlyRegistration=false` و`Security__RestrictWorkspaceCreation=false`.
+
 ## 6. قائمة الفحص على staging قبل production
 
 - [ ] `https://<staging>/health` يرجّع `Healthy`، يعني الاتصال بـ Oracle شغّال

@@ -12,6 +12,10 @@ public class SecurityOptions
     public string AuthenticatorIssuer { get; set; } = "TaskBoard";
     /// <summary>Sign-in attempts allowed per client IP per minute, across all sign-in endpoints.</summary>
     public int AuthRequestsPerMinute { get; set; } = 30;
+    /// <summary>New accounts need an invitation for their email (the very first account excepted).</summary>
+    public bool InviteOnlyRegistration { get; set; } = true;
+    /// <summary>Only owners and admins of some workspace may create one (or anyone, before the first exists).</summary>
+    public bool RestrictWorkspaceCreation { get; set; } = true;
 }
 
 public static class Policies

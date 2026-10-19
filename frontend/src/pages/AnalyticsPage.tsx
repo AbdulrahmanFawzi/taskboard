@@ -7,7 +7,7 @@ import {
 import { Download, TrendingDown, TrendingUp } from '../components/icons'
 import clsx from 'clsx'
 import { api, tz } from '../lib/api'
-import { keys, useWorkspaceId } from '../lib/workspace'
+import { keys, useOwnCardsOnly, useWorkspaceId } from '../lib/workspace'
 import type { Analytics, Metric } from '../lib/types'
 import { Avatar, Card, CountUp, PageLoader, priorityColor } from '../components/ui'
 import { kindColor } from './BoardPage'
@@ -19,6 +19,7 @@ const ranges = [7, 30, 90] as const
 export function AnalyticsPage() {
   const workspaceId = useWorkspaceId()
   const [range, setRange] = useState<number>(30)
+  const ownOnly = useOwnCardsOnly()
   const { data, isFetching } = useQuery({
     queryKey: keys.analytics(workspaceId, range),
     queryFn: () => api.get<Analytics>(`/api/workspaces/${workspaceId}/analytics?range=${range}&tz=${tz()}`),
@@ -34,7 +35,7 @@ export function AnalyticsPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">التحليلات</h1>
-          <p className="mt-1 text-sm text-muted">كيف يتقدّم الفريق، ووين يروح الوقت.</p>
+          <p className="mt-1 text-sm text-muted">{ownOnly ? 'تقدّمك في بطاقاتك، ووين يروح وقتك.' : 'كيف يتقدّم الفريق، ووين يروح الوقت.'}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border border-line-strong bg-surface p-1" role="tablist" aria-label="الفترة">

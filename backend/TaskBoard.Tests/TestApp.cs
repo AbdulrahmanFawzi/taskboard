@@ -16,6 +16,7 @@ public class TestApp : WebApplicationFactory<Program>
     private readonly string _db = $"Data Source=file:tb{Guid.NewGuid():N}?mode=memory&cache=shared";
     private readonly SqliteConnection _keepAlive;
     protected virtual int RateLimit => 100_000;
+    protected virtual bool StrictPlatform => false;
 
     public TestApp()
     {
@@ -32,6 +33,9 @@ public class TestApp : WebApplicationFactory<Program>
         builder.UseSetting("Security:RequireTwoFactor", "true");
         // Every test client shares one address; the limiter itself has its own test below.
         builder.UseSetting("Security:AuthRequestsPerMinute", RateLimit.ToString());
+        // Most tests sign up many users without invitations; the platform rules have their own tests.
+        builder.UseSetting("Security:InviteOnlyRegistration", StrictPlatform.ToString());
+        builder.UseSetting("Security:RestrictWorkspaceCreation", StrictPlatform.ToString());
     }
 
     public User NewClient()
@@ -70,10 +74,10 @@ public class User(HttpClient http)
         return this;
     }
 
-    public async Task<MeResponse> RegisterAsync(string? email = null)
+    public async Task<MeResponse> RegisterAsync(string? email = null, string? inviteToken = null)
     {
         Email = email ?? $"u{Guid.NewGuid():N}@example.com";
-        var me = await PostOk<MeResponse>("/api/auth/register", new { email = Email, password = Password, displayName = "Test User" });
+        var me = await PostOk<MeResponse>("/api/auth/register", new { email = Email, password = Password, displayName = "Test User", inviteToken });
         Id = me.Id;
         return me;
     }

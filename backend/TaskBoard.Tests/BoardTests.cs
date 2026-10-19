@@ -128,6 +128,79 @@ public class BoardTests(TestApp app) : IClassFixture<TestApp>
         User.Status(HttpStatusCode.Conflict, await viewer.Post($"/api/invitations/{inviteViewer.Token}/accept", new { }));
     }
 
+    private async Task<User> Join(User owner, WorkspaceDetail ws, string role)
+    {
+        var user = await app.NewClient().SignUpAsync();
+        var invite = await owner.PostOk<InvitationDto>($"/api/workspaces/{ws.Id}/invitations", new { email = user.Email, role });
+        await user.PostOk<WorkspaceSummary>($"/api/invitations/{invite.Token}/accept", new { });
+        return user;
+    }
+
+    [Fact]
+    public async Task Members_see_and_touch_only_their_own_cards()
+    {
+        var (owner, ws) = await NewWorkspace();
+        var member = await Join(owner, ws, "Member");
+        var viewer = await Join(owner, ws, "Viewer");
+        var done = ws.Columns[3].Id;
+
+        var hidden = await owner.PostOk<TaskDto>($"/api/workspaces/{ws.Id}/tasks", new { title = "Owner only" });
+        var assigned = await owner.PostOk<TaskDto>($"/api/workspaces/{ws.Id}/tasks", new { title = "For member", assigneeIds = new[] { member.Id, owner.Id } });
+        var own = await member.PostOk<TaskDto>($"/api/workspaces/{ws.Id}/tasks", new { title = "Member made", assigneeIds = new[] { owner.Id } });
+        await owner.PostOk<List<TaskDto>>($"/api/tasks/{hidden.Id}/move", new { columnId = done });
+
+        // The board: assigned to them, or created by them. Nothing else.
+        var seen = await member.GetOk<List<TaskDto>>($"/api/workspaces/{ws.Id}/tasks");
+        Assert.Equal(["For member", "Member made"], seen.Select(t => t.Title).Order());
+        Assert.Empty(own.AssigneeIds); // a member cannot hand work to someone else
+
+        // Someone else's card does not exist as far as a member is concerned.
+        User.Status(HttpStatusCode.NotFound, await member.Http.GetAsync($"/api/tasks/{hidden.Id}"));
+        User.Status(HttpStatusCode.NotFound, await member.Patch($"/api/tasks/{hidden.Id}", new { title = "x" }));
+        User.Status(HttpStatusCode.NotFound, await member.Post($"/api/tasks/{hidden.Id}/move", new { columnId = ws.Columns[0].Id }));
+        User.Status(HttpStatusCode.NotFound, await member.Post($"/api/tasks/{hidden.Id}/comments", new { body = "hi" }));
+        User.Status(HttpStatusCode.NotFound, await member.Http.DeleteAsync($"/api/tasks/{hidden.Id}"));
+
+        // On a shared card they can add or remove only themselves; the owner stays on it.
+        var edited = await member.PatchOk<TaskDto>($"/api/tasks/{assigned.Id}", new { assigneeIds = Array.Empty<Guid>() });
+        Assert.Equal([owner.Id], edited.AssigneeIds);
+        User.Status(HttpStatusCode.NotFound, await member.Http.GetAsync($"/api/tasks/{assigned.Id}")); // no longer theirs
+        // They delete only what they created.
+        await owner.PatchOk<TaskDto>($"/api/tasks/{assigned.Id}", new { assigneeIds = new[] { member.Id } });
+        User.Status(HttpStatusCode.Forbidden, await member.Http.DeleteAsync($"/api/tasks/{assigned.Id}"));
+
+        // Moves return only their cards. With no visible neighbour the card goes to the top; "after X"
+        // lands right after X in the full column, even with hidden cards around it.
+        var moved = await member.PostOk<List<TaskDto>>($"/api/tasks/{own.Id}/move", new { columnId = done, afterTaskId = (Guid?)null, beforeTaskId = (Guid?)null });
+        Assert.DoesNotContain(moved, t => t.Id == hidden.Id);
+        var second = await member.PostOk<TaskDto>($"/api/workspaces/{ws.Id}/tasks", new { title = "Member second" });
+        await member.PostOk<List<TaskDto>>($"/api/tasks/{second.Id}/move", new { columnId = done, afterTaskId = own.Id });
+        var full = await owner.GetOk<List<TaskDto>>($"/api/workspaces/{ws.Id}/tasks");
+        Assert.Equal([own.Id, second.Id, hidden.Id], full.Where(t => t.ColumnId == done).OrderBy(t => t.Position).Select(t => t.Id));
+
+        // Numbers, activity and export cover their cards only.
+        var dash = await member.GetOk<DashboardResponse>($"/api/workspaces/{ws.Id}/dashboard");
+        Assert.Equal(1, dash.ActiveTasks);
+        Assert.Equal(2, dash.CompletedThisWeek);
+        Assert.DoesNotContain(dash.RecentActivity, a => a.Summary.Contains("Owner only"));
+        var stats = await member.GetOk<AnalyticsResponse>($"/api/workspaces/{ws.Id}/analytics?range=7");
+        Assert.Equal(2, stats.TasksCompleted.Value);
+        Assert.Equal(3, stats.ByStatus.Sum(s => s.Count));
+        var csv = await member.Http.GetStringAsync($"/api/workspaces/{ws.Id}/analytics/export?range=7");
+        Assert.DoesNotContain("Owner only", csv);
+        Assert.Contains("Member made", csv);
+
+        // Colleagues' emails are hidden from members, but not their own.
+        var detail = await member.GetOk<WorkspaceDetail>($"/api/workspaces/{ws.Id}");
+        Assert.Equal("", detail.Members.Single(m => m.UserId == owner.Id).Email);
+        Assert.Equal(member.Email, detail.Members.Single(m => m.UserId == member.Id).Email);
+
+        // Owners and viewers still see the whole board.
+        Assert.Equal(4, (await owner.GetOk<List<TaskDto>>($"/api/workspaces/{ws.Id}/tasks")).Count);
+        Assert.Equal(4, (await viewer.GetOk<List<TaskDto>>($"/api/workspaces/{ws.Id}/tasks")).Count);
+        Assert.Equal(1, (await viewer.GetOk<DashboardResponse>($"/api/workspaces/{ws.Id}/dashboard")).ActiveTasks); // only "For member" is still open
+    }
+
     [Fact]
     public async Task Last_owner_cannot_leave_or_be_demoted()
     {

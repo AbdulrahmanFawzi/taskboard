@@ -114,7 +114,7 @@ export function TeamPage() {
                 <Avatar name={m.displayName} color={m.avatarColor} size={38} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{m.displayName} {isMe && <span className="text-xs font-semibold text-muted">(أنت)</span>}</p>
-                  <p className="truncate text-xs text-muted" dir="ltr">{m.email}</p>
+                  {m.email && <p className="truncate text-xs text-muted" dir="ltr">{m.email}</p>}
                 </div>
                 {canManage ? (
                   <select value={m.role} aria-label={`صلاحية ${m.displayName}`}

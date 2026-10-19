@@ -18,8 +18,8 @@ public class TasksController(
     [HttpGet("api/workspaces/{workspaceId:guid}/tasks")]
     public async Task<IReadOnlyList<TaskDto>> List(Guid workspaceId)
     {
-        await access.RequireAsync(workspaceId);
-        return await db.Tasks.Where(t => t.WorkspaceId == workspaceId)
+        var role = await access.RequireAsync(workspaceId);
+        return await db.Tasks.Where(t => t.WorkspaceId == workspaceId).VisibleTo(role, access.UserId)
             .OrderBy(t => t.Position).ThenBy(t => t.CreatedAt)
             .ToDto().ToListAsync();
     }
@@ -27,7 +27,7 @@ public class TasksController(
     [HttpPost("api/workspaces/{workspaceId:guid}/tasks")]
     public async Task<ActionResult<TaskDto>> Create(Guid workspaceId, CreateTaskRequest req)
     {
-        await access.RequireAsync(workspaceId, WorkspaceRole.Member);
+        var role = await access.RequireAsync(workspaceId, WorkspaceRole.Member);
         var column = req.ColumnId is { } cid
             ? await db.Columns.FirstOrDefaultAsync(c => c.Id == cid && c.WorkspaceId == workspaceId)
             : await db.Columns.Where(c => c.WorkspaceId == workspaceId).OrderBy(c => c.Position).FirstOrDefaultAsync();
@@ -52,6 +52,8 @@ public class TasksController(
         if (req.AssigneeIds is { Count: > 0 })
         {
             var valid = await ValidMemberIds(workspaceId, req.AssigneeIds);
+            // Members assign cards to themselves only; handing work to others is for admins.
+            if (CardVisibility.OwnCardsOnly(role)) valid = valid.Where(u => u == access.UserId).ToList();
             task.Assignees.AddRange(valid.Select(id => new TaskAssignee { UserId = id }));
         }
         db.Tasks.Add(task);
@@ -77,7 +79,7 @@ public class TasksController(
     [HttpPatch("api/tasks/{id:guid}")]
     public async Task<ActionResult<TaskDto>> Update(Guid id, UpdateTaskRequest req)
     {
-        var task = await access.RequireTaskAsync(id, WorkspaceRole.Member);
+        var (task, role) = await access.RequireTaskWithRoleAsync(id, WorkspaceRole.Member);
         if (req.Title is not null)
         {
             if (string.IsNullOrWhiteSpace(req.Title)) return Problem("البطاقة تحتاج عنوانًا.", statusCode: 400);
@@ -99,6 +101,13 @@ public class TasksController(
         if (req.AssigneeIds is not null)
         {
             var valid = await ValidMemberIds(task.WorkspaceId, req.AssigneeIds);
+            if (CardVisibility.OwnCardsOnly(role))
+            {
+                // A member can add or remove only themselves; everyone else on the card stays.
+                var me = access.UserId;
+                var others = await db.TaskAssignees.Where(a => a.TaskId == id && a.UserId != me).Select(a => a.UserId).ToListAsync();
+                valid = others.Concat(valid.Where(u => u == me)).ToList();
+            }
             await db.TaskAssignees.Where(a => a.TaskId == id).ExecuteDeleteAsync();
             db.TaskAssignees.AddRange(valid.Select(u => new TaskAssignee { TaskId = id, UserId = u }));
         }
@@ -111,13 +120,24 @@ public class TasksController(
     [HttpPost("api/tasks/{id:guid}/move")]
     public async Task<ActionResult<IReadOnlyList<TaskDto>>> Move(Guid id, MoveTaskRequest req)
     {
-        var task = await access.RequireTaskAsync(id, WorkspaceRole.Member);
+        var (task, role) = await access.RequireTaskWithRoleAsync(id, WorkspaceRole.Member);
         var target = await db.Columns.FirstOrDefaultAsync(c => c.Id == req.ColumnId && c.WorkspaceId == task.WorkspaceId);
         if (target is null) return Problem("هذا العمود غير موجود في اللوحة.", statusCode: 400);
 
+        // Turn "after card X" / "before card Y" into a position in the full column.
+        var index = req.Index;
+        if (req.AfterTaskId is not null || req.BeforeTaskId is not null)
+        {
+            var order = await db.Tasks.Where(t => t.ColumnId == target.Id && t.Id != id)
+                .OrderBy(t => t.Position).ThenBy(t => t.CreatedAt).Select(t => t.Id).ToListAsync();
+            var after = req.AfterTaskId is { } a ? order.IndexOf(a) : -1;
+            var before = req.BeforeTaskId is { } b ? order.IndexOf(b) : -1;
+            index = after >= 0 ? after + 1 : before >= 0 ? before : order.Count;
+        }
+
         var fromColumn = task.ColumnId;
         var wasDone = task.CompletedAt != null;
-        await ordering.MoveAsync(task, target, req.Index);
+        await ordering.MoveAsync(task, target, index);
 
         if (fromColumn != target.Id)
         {
@@ -130,13 +150,16 @@ public class TasksController(
 
         // Hand back both affected columns so the client can reconcile its optimistic order.
         return await db.Tasks.Where(t => t.ColumnId == target.Id || t.ColumnId == fromColumn)
+            .VisibleTo(role, access.UserId)
             .OrderBy(t => t.Position).ToDto().ToListAsync();
     }
 
     [HttpDelete("api/tasks/{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var task = await access.RequireTaskAsync(id, WorkspaceRole.Member);
+        var (task, role) = await access.RequireTaskWithRoleAsync(id, WorkspaceRole.Member);
+        if (CardVisibility.OwnCardsOnly(role) && task.CreatedById != access.UserId)
+            return Problem("تقدر تحذف البطاقات اللي أنشأتها فقط.", statusCode: 403);
         db.Tasks.Remove(task);
         activity.Add(task.WorkspaceId, access.UserId, "task.deleted", $"حذف «{task.Title}»");
         await db.SaveChangesAsync();

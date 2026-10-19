@@ -11,7 +11,7 @@ import { CalendarDays, CheckSquare, Flag, MessageSquare, Plus, Search } from '..
 import clsx from 'clsx'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { keys, useCan, useTasks, useWorkspace, useWorkspaceId } from '../lib/workspace'
+import { keys, useCan, useOwnCardsOnly, useTasks, useWorkspace, useWorkspaceId } from '../lib/workspace'
 import type { Column, Member, Project, Task, Workspace } from '../lib/types'
 import { Avatar, Badge, Button, PageLoader, priorityColor, useToast } from '../components/ui'
 import { TaskModal } from '../components/TaskModal'
@@ -30,6 +30,7 @@ export function BoardPage() {
   const { data: tasks } = useTasks()
   const { me } = useAuth()
   const canEdit = useCan('Member')
+  const ownOnly = useOwnCardsOnly()
   const qc = useQueryClient()
   const { toast, toastNode } = useToast()
 
@@ -64,8 +65,10 @@ export function BoardPage() {
   const byId = useMemo(() => new Map(tasks?.map(t => [t.id, t])), [tasks])
 
   const move = useMutation({
-    mutationFn: (v: { taskId: string; columnId: string; index: number }) =>
-      api.post<Task[]>(`/api/tasks/${v.taskId}/move`, { columnId: v.columnId, index: v.index }),
+    // The server places the card by its neighbours: a member sees only part of each column, so an
+    // index from this screen would not match the full column. `index` is for the optimistic update.
+    mutationFn: (v: { taskId: string; columnId: string; index: number; afterTaskId: string | null; beforeTaskId: string | null }) =>
+      api.post<Task[]>(`/api/tasks/${v.taskId}/move`, { columnId: v.columnId, afterTaskId: v.afterTaskId, beforeTaskId: v.beforeTaskId }),
     onMutate: async v => {
       await qc.cancelQueries({ queryKey: keys.tasks(workspaceId) })
       const before = qc.getQueryData<Task[]>(keys.tasks(workspaceId))
@@ -138,7 +141,7 @@ export function BoardPage() {
     const prev = list[visibleIndex - 1]
     const next = list[visibleIndex + 1]
     const index = prev ? full.indexOf(prev) + 1 : next ? Math.max(0, full.indexOf(next)) : full.length
-    move.mutate({ taskId: id, columnId: to, index })
+    move.mutate({ taskId: id, columnId: to, index, afterTaskId: prev ?? null, beforeTaskId: prev ? null : next ?? null })
 
     const col = ws.columns.find(c => c.id === to)
     if (col && col.id !== task.columnId) toast(col.kind === 'Done' ? `أحسنت! اكتملت «${task.title}»` : `انتقلت إلى ${col.name}`)
@@ -151,7 +154,10 @@ export function BoardPage() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">المهام</h1>
-          <p className="mt-1 text-sm text-muted">{canEdit ? 'اسحب البطاقة لمرحلة ثانية، أو افتحها لتعديل أي تفاصيل.' : 'تقدر تشوف اللوحة بس. اطلب من المشرف صلاحية التعديل.'}</p>
+          <p className="mt-1 text-sm text-muted">
+            {ownOnly ? 'تظهر لك البطاقات المسندة لك واللي أنشأتها. اسحبها بين المراحل أو افتحها للتعديل.'
+              : canEdit ? 'اسحب البطاقة لمرحلة ثانية، أو افتحها لتعديل أي تفاصيل.' : 'تقدر تشوف اللوحة بس. اطلب من المشرف صلاحية التعديل.'}
+          </p>
         </div>
         {canEdit && <QuickAdd workspace={ws} />}
       </div>

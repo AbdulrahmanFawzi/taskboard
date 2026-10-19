@@ -20,14 +20,18 @@ public class Reports(AppDbContext db)
         int TrackedMinutes, DateTime CreatedAt, DateTime? StartedAt, DateTime? CompletedAt, List<Guid> Assignees);
 
     /// <param name="tzMinutes">The viewer's offset from UTC in minutes, so "today" and "this week" are theirs.</param>
-    public async Task<DashboardResponse> DashboardAsync(Guid workspaceId, Guid userId, int tzMinutes)
+    /// <summary>
+    /// Every number is computed over the cards the viewer may see (see <see cref="CardVisibility"/>),
+    /// so a member's dashboard and analytics describe their own work only.
+    /// </summary>
+    public async Task<DashboardResponse> DashboardAsync(Guid workspaceId, Guid userId, WorkspaceRole role, int tzMinutes)
     {
         var offset = TimeSpan.FromMinutes(Math.Clamp(tzMinutes, -840, 840));
         var today = DateOnly.FromDateTime(DateTime.UtcNow + offset);
         // Saudi working week: Sunday to Thursday, Friday and Saturday off. The week runs Sunday to
         // Saturday; the chart shows the five working days and weekend work is counted separately.
         var weekStart = today.AddDays(-(int)today.DayOfWeek); // Sunday
-        var rows = await LoadAsync(workspaceId);
+        var rows = await LoadAsync(workspaceId, role, userId);
 
         DateOnly Local(DateTime utc) => DateOnly.FromDateTime(utc + offset);
         var open = rows.Where(r => r.CompletedAt == null).ToList();
@@ -47,7 +51,7 @@ public class Reports(AppDbContext db)
         var myTasks = await db.Tasks.Where(t => mine.Contains(t.Id)).ToDto().ToListAsync();
         myTasks = myTasks.OrderBy(t => mine.IndexOf(t.Id)).ToList();
 
-        var recent = await db.Activity.Where(a => a.WorkspaceId == workspaceId)
+        var recent = await VisibleActivity(workspaceId, role, userId)
             .OrderByDescending(a => a.CreatedAt).Take(12)
             .Select(a => new ActivityDto(a.Id, a.Type, a.Summary, a.ActorId, a.Actor.DisplayName, a.Actor.AvatarColor, a.TaskId, a.CreatedAt))
             .ToListAsync();
@@ -66,7 +70,7 @@ public class Reports(AppDbContext db)
             RecentActivity: recent);
     }
 
-    public async Task<AnalyticsResponse> AnalyticsAsync(Guid workspaceId, int rangeDays, int tzMinutes)
+    public async Task<AnalyticsResponse> AnalyticsAsync(Guid workspaceId, Guid userId, WorkspaceRole role, int rangeDays, int tzMinutes)
     {
         rangeDays = rangeDays is 7 or 30 or 90 ? rangeDays : 30;
         var offset = TimeSpan.FromMinutes(Math.Clamp(tzMinutes, -840, 840));
@@ -75,7 +79,7 @@ public class Reports(AppDbContext db)
         var prevStart = start.AddDays(-rangeDays);
         DateOnly Local(DateTime utc) => DateOnly.FromDateTime(utc + offset);
 
-        var rows = await LoadAsync(workspaceId);
+        var rows = await LoadAsync(workspaceId, role, userId);
         var done = rows.Where(r => r.CompletedAt != null).Select(r => (Row: r, Day: Local(r.CompletedAt!.Value))).ToList();
         var current = done.Where(d => d.Day >= start && d.Day <= today).Select(d => d.Row).ToList();
         var previous = done.Where(d => d.Day >= prevStart && d.Day < start).Select(d => d.Row).ToList();
@@ -113,7 +117,7 @@ public class Reports(AppDbContext db)
 
         // Activity heatmap always covers the last 12 weeks, like a contribution graph.
         var heatStart = today.AddDays(-83);
-        var events = await db.Activity.Where(a => a.WorkspaceId == workspaceId && a.CreatedAt >= DateTime.UtcNow.AddDays(-85))
+        var events = await VisibleActivity(workspaceId, role, userId).Where(a => a.CreatedAt >= DateTime.UtcNow.AddDays(-85))
             .Select(a => a.CreatedAt).ToListAsync();
         var eventDays = events.GroupBy(Local).ToDictionary(g => g.Key, g => g.Count());
         var heatmap = Enumerable.Range(0, 84).Select(i => heatStart.AddDays(i))
@@ -142,11 +146,12 @@ public class Reports(AppDbContext db)
             throughput, timeByProject, heatmap, contributors, byStatus, byPriority);
     }
 
-    public async Task<string> CompletedCsvAsync(Guid workspaceId, int rangeDays)
+    public async Task<string> CompletedCsvAsync(Guid workspaceId, Guid userId, WorkspaceRole role, int rangeDays)
     {
         rangeDays = rangeDays is 7 or 30 or 90 ? rangeDays : 30;
         var since = DateTime.UtcNow.AddDays(-rangeDays);
         var rows = await db.Tasks.Where(t => t.WorkspaceId == workspaceId && t.CompletedAt != null && t.CompletedAt >= since)
+            .VisibleTo(role, userId)
             .Select(t => new
             {
                 t.Title, Project = t.Project != null ? t.Project.Name : "", t.Priority, t.Tag, t.DueDate,
@@ -181,8 +186,17 @@ public class Reports(AppDbContext db)
         return "\"" + value.Replace("\"", "\"\"") + "\"";
     }
 
-    private Task<List<Row>> LoadAsync(Guid workspaceId) =>
-        db.Tasks.AsNoTracking().Where(t => t.WorkspaceId == workspaceId)
+    /// <summary>A member sees their own actions and anything that happened on their cards.</summary>
+    private IQueryable<ActivityEvent> VisibleActivity(Guid workspaceId, WorkspaceRole role, Guid userId)
+    {
+        var events = db.Activity.Where(a => a.WorkspaceId == workspaceId);
+        if (!CardVisibility.OwnCardsOnly(role)) return events;
+        var myCards = db.Tasks.Where(t => t.WorkspaceId == workspaceId).VisibleTo(role, userId).Select(t => t.Id);
+        return events.Where(a => a.ActorId == userId || (a.TaskId != null && myCards.Contains(a.TaskId.Value)));
+    }
+
+    private Task<List<Row>> LoadAsync(Guid workspaceId, WorkspaceRole role, Guid userId) =>
+        db.Tasks.AsNoTracking().Where(t => t.WorkspaceId == workspaceId).VisibleTo(role, userId)
             .Select(t => new Row(t.Id, t.ColumnId, t.ProjectId, t.Title, t.Priority, t.DueDate, t.TrackedMinutes,
                 t.CreatedAt, t.StartedAt, t.CompletedAt, t.Assignees.Select(a => a.UserId).ToList()))
             .ToListAsync();

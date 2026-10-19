@@ -75,15 +75,40 @@ function useWorkspaces() {
 }
 
 function HomeRedirect() {
+  const { me } = useAuth()
   const { data, isLoading } = useWorkspaces()
   if (isLoading || !data) return <PageLoader />
   let last: string | null = null
   try { last = localStorage.getItem('tb.lastWorkspace') } catch { /* storage blocked */ }
   const target = data.find(w => w.id === last) ?? data[0]
-  return target ? <Navigate to={`/w/${target.id}`} replace /> : <Navigate to="/new" replace />
+  if (target) return <Navigate to={`/w/${target.id}`} replace />
+  return me?.canCreateWorkspace ? <Navigate to="/new" replace /> : <NoWorkspacePage />
+}
+
+/** Signed in but in no workspace, and not allowed to start one: point them to an invitation. */
+function NoWorkspacePage() {
+  const { me, signOut } = useAuth()
+  return (
+    <div className="grid min-h-full place-items-center p-6">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
+        <Logo />
+        <h1 className="mt-8 text-xl font-bold">ما عندك مساحة عمل حاليًا</h1>
+        <p className="mt-2 text-sm text-muted">
+          حسابك (<span dir="ltr">{me?.email}</span>) غير مرتبط بأي مساحة عمل. اطلب من مشرف مساحة العمل يرسل لك رابط دعوة، وافتحه وأنت مسجّل دخول.
+        </p>
+        <Button variant="outline" className="mt-6" onClick={signOut}>تسجيل الخروج</Button>
+      </div>
+    </div>
+  )
 }
 
 function NewWorkspacePage() {
+  const { me } = useAuth()
+  if (me && !me.canCreateWorkspace) return <Navigate to="/" replace />
+  return <NewWorkspaceForm />
+}
+
+function NewWorkspaceForm() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: existing } = useWorkspaces()
@@ -335,6 +360,7 @@ function Shell() {
 }
 
 function WorkspaceSwitcher({ current, compact }: { current: Workspace; compact?: boolean }) {
+  const { me } = useAuth()
   const { data } = useWorkspaces()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -361,9 +387,11 @@ function WorkspaceSwitcher({ current, compact }: { current: Workspace; compact?:
                 <span className="ms-auto text-[11px] text-muted">{roleLabel[w.role]}</span>
               </button>
             ))}
-            <button onClick={() => { setOpen(false); navigate('/new') }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-accent hover:bg-surface-2">
-              <Plus size={16} /> مساحة عمل جديدة
-            </button>
+            {me?.canCreateWorkspace && (
+              <button onClick={() => { setOpen(false); navigate('/new') }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold text-accent hover:bg-surface-2">
+                <Plus size={16} /> مساحة عمل جديدة
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -14,6 +14,7 @@ export interface Me {
   twoFactorRequired: boolean
   sessionVerified: boolean
   recoveryCodesLeft: number
+  canCreateWorkspace: boolean
 }
 
 export interface LoginResponse { requiresTwoFactor: boolean; user: Me | null }
@@ -51,6 +52,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   completedAt: string | null
+  createdById: string
 }
 
 export interface ChecklistItem { id: string; text: string; done: boolean; position: number }

@@ -16,6 +16,7 @@ public class AuthController(
     UserManager<AppUser> users,
     SignInManager<AppUser> signIn,
     IOptions<SecurityOptions> security,
+    PlatformRules rules,
     ILogger<AuthController> log) : ControllerBase
 {
     private static readonly string[] AvatarColors =
@@ -25,6 +26,9 @@ public class AuthController(
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<MeResponse>> Register(RegisterRequest req)
     {
+        if (await rules.RegistrationBlockedAsync(req.Email, req.InviteToken) is { } reason)
+            return Problem(reason, statusCode: 403);
+
         var user = new AppUser
         {
             UserName = req.Email.Trim(),
@@ -181,7 +185,8 @@ public class AuthController(
         user.Id, user.Email!, user.DisplayName, user.AvatarColor,
         user.TwoFactorEnabled, security.Value.RequireTwoFactor,
         sessionVerified || !security.Value.RequireTwoFactor,
-        user.TwoFactorEnabled ? await users.CountRecoveryCodesAsync(user) : 0);
+        user.TwoFactorEnabled ? await users.CountRecoveryCodesAsync(user) : 0,
+        await rules.CanCreateWorkspaceAsync(user.Id));
 
     private static string NormalizeCode(string code) => code.Replace(" ", "").Replace("-", "");
 

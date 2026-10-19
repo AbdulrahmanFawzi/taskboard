@@ -7,7 +7,8 @@ namespace TaskBoard.Api.Contracts;
 public record RegisterRequest(
     [Required, EmailAddress, MaxLength(256)] string Email,
     [Required, MinLength(10), MaxLength(128)] string Password,
-    [Required, MinLength(2), MaxLength(80)] string DisplayName);
+    [Required, MinLength(2), MaxLength(80)] string DisplayName,
+    [MaxLength(64)] string? InviteToken = null);
 
 public record LoginRequest([Required] string Email, [Required] string Password, bool RememberMe = false);
 public record TwoFactorLoginRequest([Required] string Code, bool RememberMachine = false);
@@ -20,7 +21,8 @@ public record RecoveryCodesResponse(IReadOnlyList<string> RecoveryCodes);
 
 public record MeResponse(
     Guid Id, string Email, string DisplayName, string AvatarColor,
-    bool TwoFactorEnabled, bool TwoFactorRequired, bool SessionVerified, int RecoveryCodesLeft);
+    bool TwoFactorEnabled, bool TwoFactorRequired, bool SessionVerified, int RecoveryCodesLeft,
+    bool CanCreateWorkspace);
 
 public record UserSummary(Guid Id, string DisplayName, string Email, string AvatarColor);
 
@@ -53,7 +55,7 @@ public record TaskDto(
     Guid Id, Guid ColumnId, Guid? ProjectId, string Title, string Description, string? Tag,
     TaskPriority Priority, DateOnly? DueDate, int Position, int TrackedMinutes,
     IReadOnlyList<Guid> AssigneeIds, int ChecklistTotal, int ChecklistDone, int CommentCount,
-    DateTime CreatedAt, DateTime UpdatedAt, DateTime? CompletedAt);
+    DateTime CreatedAt, DateTime UpdatedAt, DateTime? CompletedAt, Guid CreatedById);
 
 public record TaskDetailDto(TaskDto Task, IReadOnlyList<ChecklistItemDto> Checklist, IReadOnlyList<CommentDto> Comments);
 public record ChecklistItemDto(Guid Id, string Text, bool Done, int Position);
@@ -82,7 +84,11 @@ public record UpdateTaskRequest(
     [Range(0, 100_000)] int? TrackedMinutes,
     IReadOnlyList<Guid>? AssigneeIds);
 
-public record MoveTaskRequest(Guid ColumnId, [Range(0, int.MaxValue)] int Index);
+/// <summary>
+/// Where to drop a card. Prefer AfterTaskId/BeforeTaskId (the neighbours the user saw): a member sees
+/// only part of each column, so a plain index from their screen would not match the full column.
+/// </summary>
+public record MoveTaskRequest(Guid ColumnId, [Range(0, int.MaxValue)] int Index = 0, Guid? AfterTaskId = null, Guid? BeforeTaskId = null);
 public record CreateChecklistItemRequest([Required, MaxLength(300)] string Text);
 public record UpdateChecklistItemRequest([MaxLength(300)] string? Text, bool? Done);
 public record CreateCommentRequest([Required, MaxLength(4000)] string Body);

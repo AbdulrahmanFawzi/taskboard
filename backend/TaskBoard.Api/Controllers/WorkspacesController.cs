@@ -15,7 +15,7 @@ namespace TaskBoard.Api.Controllers;
 [Authorize]
 [Route("api/workspaces")]
 public class WorkspacesController(
-    AppDbContext db, WorkspaceAccess access, ActivityLog activity, BoardEvents events, SampleData sample)
+    AppDbContext db, WorkspaceAccess access, ActivityLog activity, BoardEvents events, SampleData sample, PlatformRules rules)
     : ControllerBase
 {
     [HttpGet]
@@ -33,6 +33,8 @@ public class WorkspacesController(
     public async Task<ActionResult<WorkspaceDetail>> Create(CreateWorkspaceRequest req)
     {
         var me = access.UserId;
+        if (!await rules.CanCreateWorkspaceAsync(me))
+            return Problem("إنشاء مساحات العمل متاح للمالك والمشرف فقط.", statusCode: 403);
         var ws = new Workspace { Name = req.Name.Trim() };
         ws.Members.Add(new WorkspaceMember { UserId = me, Role = WorkspaceRole.Owner });
         ws.Columns.AddRange(DefaultColumns());
@@ -272,6 +274,12 @@ public class WorkspacesController(
             .OrderByDescending(m => m.Role).ThenBy(m => m.User.DisplayName)
             .Select(m => new MemberDto(m.UserId, m.User.DisplayName, m.User.Email!, m.User.AvatarColor, m.Role, m.JoinedAt))
             .ToListAsync();
+        // Members see who is on the team (names show on shared cards) but not their colleagues' emails.
+        if (CardVisibility.OwnCardsOnly(role))
+        {
+            var me = access.UserId;
+            members = members.Select(m => m.UserId == me ? m : m with { Email = "" }).ToList();
+        }
         return new WorkspaceDetail(ws.Id, ws.Name, ws.AccentColor, role, columns, projects, members);
     }
 

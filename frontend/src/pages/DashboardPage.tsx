@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle2, FolderKanban, ListTodo, Plus } from '../co
 import clsx from 'clsx'
 import { api, tz } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { keys, useCan, useWorkspace, useWorkspaceId } from '../lib/workspace'
+import { keys, useCan, useOwnCardsOnly, useWorkspace, useWorkspaceId } from '../lib/workspace'
 import type { Dashboard } from '../lib/types'
 import { Avatar, Badge, Card, CountUp, PageLoader, priorityColor } from '../components/ui'
 import { TaskModal } from '../components/TaskModal'
@@ -19,6 +19,7 @@ export function DashboardPage() {
   const { data: ws } = useWorkspace()
   const { me } = useAuth()
   const canEdit = useCan('Member')
+  const ownOnly = useOwnCardsOnly()
   const [openTask, setOpenTask] = useState<string | null>(null)
   const { data } = useQuery({
     queryKey: keys.dashboard(workspaceId),
@@ -44,7 +45,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">{greeting}، {me.displayName.split(' ')[0]}</h1>
           <p className="mt-1 text-sm text-muted">
-            {new Date().toLocaleDateString(LOCALE, { weekday: 'long', month: 'long', day: 'numeric' })} · {data.activeTasks} مهمة مفتوحة، و{data.dueToday} تستحق اليوم
+            {new Date().toLocaleDateString(LOCALE, { weekday: 'long', month: 'long', day: 'numeric' })} · {data.activeTasks} مهمة مفتوحة، و{data.dueToday} تستحق اليوم{ownOnly && ' · الأرقام هنا لبطاقاتك أنت فقط'}
           </p>
         </div>
         {canEdit && (

@@ -118,6 +118,7 @@ builder.Services.AddScoped<BoardOrdering>();
 builder.Services.AddScoped<BoardEvents>();
 builder.Services.AddScoped<Reports>();
 builder.Services.AddScoped<SampleData>();
+builder.Services.AddScoped<PlatformRules>();
 builder.Services.AddSignalR();
 // Every error body the browser sees carries an Arabic title, including the framework's own 401/403/404.
 builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = ctx =>

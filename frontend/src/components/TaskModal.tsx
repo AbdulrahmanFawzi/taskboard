@@ -4,7 +4,7 @@ import { Check, Clock, Trash2, X } from './icons'
 import clsx from 'clsx'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { keys, useCan, useWorkspace, useWorkspaceId } from '../lib/workspace'
+import { keys, useCan, useOwnCardsOnly, useWorkspace, useWorkspaceId } from '../lib/workspace'
 import { priorities, type ChecklistItem, type Comment, type Priority, type Task, type TaskDetail } from '../lib/types'
 import { Avatar, Button, ErrorNote, Modal, PageLoader, priorityColor, useToast } from './ui'
 import { DatePicker } from './DatePicker'
@@ -77,6 +77,7 @@ function TaskEditor({ taskId, onDirtyChange, onCancel, onDone }: {
   const { me } = useAuth()
   const canEdit = useCan('Member')
   const canModerate = useCan('Admin')
+  const ownOnly = useOwnCardsOnly()
   const qc = useQueryClient()
   const detail = useQuery({ queryKey: keys.task(taskId), queryFn: () => api.get<TaskDetail>(`/api/tasks/${taskId}`) })
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -287,11 +288,14 @@ function TaskEditor({ taskId, onDirtyChange, onCancel, onDone }: {
               </div>
             </Side>
             <Side label="المسؤولون">
+              {ownOnly && <p className="mb-1.5 text-[11px] text-muted">تقدر تسند البطاقة لنفسك فقط.</p>}
               <div className="space-y-1">
-                {ws.members.map(m => {
+                {/* Members can add or remove only themselves; others already on the card show but stay fixed. */}
+                {ws.members.filter(m => !ownOnly || m.userId === me?.id || draft.assigneeIds.includes(m.userId)).map(m => {
                   const on = draft.assigneeIds.includes(m.userId)
+                  const locked = ownOnly && m.userId !== me?.id
                   return (
-                    <button key={m.userId} type="button" disabled={!canEdit} onClick={() => toggleAssignee(m.userId)} aria-pressed={on}
+                    <button key={m.userId} type="button" disabled={!canEdit || locked} onClick={() => toggleAssignee(m.userId)} aria-pressed={on}
                       className={clsx('flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-xs', on ? 'bg-accent-soft font-bold' : 'hover:bg-surface-2')}>
                       <Avatar name={m.displayName} color={m.avatarColor} size={22} />
                       <span className="flex-1 truncate">{m.displayName}</span>
@@ -312,7 +316,7 @@ function TaskEditor({ taskId, onDirtyChange, onCancel, onDone }: {
             <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!dirty || !valid}>حفظ</Button>
             <Button variant="outline" onClick={onCancel} disabled={save.isPending}>إلغاء</Button>
             <span className="text-xs text-muted">{dirty ? 'فيه تعديلات ما انحفظت' : 'لا توجد تعديلات'}</span>
-            <div className="ms-auto">
+            <div className={clsx('ms-auto', ownOnly && task.createdById !== me?.id && 'hidden')}>
               <Button variant="ghost" className="hover:!text-danger" loading={remove.isPending}
                 onClick={() => { if (confirm('حذف هذه البطاقة؟ لا يمكن التراجع عن الحذف.')) remove.mutate() }}>
                 <Trash2 size={15} /> حذف البطاقة

@@ -36,11 +36,37 @@ public class WorkspaceAccess(AppDbContext db, IHttpContextAccessor http)
         return member.Role;
     }
 
-    /// <summary>Looks up a task and checks the caller's role in its workspace.</summary>
-    public async Task<TaskItem> RequireTaskAsync(Guid taskId, WorkspaceRole minimum)
+    /// <summary>Looks up a task the caller may see and checks their role in its workspace.</summary>
+    public async Task<TaskItem> RequireTaskAsync(Guid taskId, WorkspaceRole minimum) =>
+        (await RequireTaskWithRoleAsync(taskId, minimum)).Task;
+
+    /// <summary>
+    /// Like <see cref="RequireTaskAsync"/>, also returning the caller's role. A member asking for a
+    /// card that is not theirs gets the same 404 as a card that does not exist.
+    /// </summary>
+    public async Task<(TaskItem Task, WorkspaceRole Role)> RequireTaskWithRoleAsync(Guid taskId, WorkspaceRole minimum)
     {
         var task = await db.Tasks.FirstOrDefaultAsync(t => t.Id == taskId) ?? throw new AccessDeniedException(true);
-        await RequireAsync(task.WorkspaceId, minimum);
-        return task;
+        var role = await RequireAsync(task.WorkspaceId, minimum);
+        if (CardVisibility.OwnCardsOnly(role))
+        {
+            var me = UserId;
+            var mine = task.CreatedById == me || await db.TaskAssignees.AnyAsync(a => a.TaskId == taskId && a.UserId == me);
+            if (!mine) throw new AccessDeniedException(true);
+        }
+        return (task, role);
     }
+}
+
+/// <summary>
+/// Who sees which cards. Owners and admins manage the whole board and viewers follow all of it
+/// read-only; a member sees only their own cards: those assigned to them and those they created.
+/// Every query that returns cards, numbers about cards or activity goes through here.
+/// </summary>
+public static class CardVisibility
+{
+    public static bool OwnCardsOnly(WorkspaceRole role) => role == WorkspaceRole.Member;
+
+    public static IQueryable<TaskItem> VisibleTo(this IQueryable<TaskItem> cards, WorkspaceRole role, Guid userId) =>
+        OwnCardsOnly(role) ? cards.Where(t => t.CreatedById == userId || t.Assignees.Any(a => a.UserId == userId)) : cards;
 }

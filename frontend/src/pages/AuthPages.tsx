@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
@@ -6,7 +6,7 @@ import { motion } from 'motion/react'
 import { Check, Copy, KeyRound, ShieldCheck, Smartphone } from '../components/icons'
 import { api, ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import type { LoginResponse, Me, TwoFactorSetup } from '../lib/types'
+import type { InvitationPreview, LoginResponse, Me, TwoFactorSetup } from '../lib/types'
 import { Button, ErrorNote, Field } from '../components/ui'
 import { identityErrors } from '../lib/i18n'
 
@@ -166,30 +166,59 @@ export function LoginPage() {
         <ErrorNote error={login.error} />
         <Button className="w-full" loading={login.isPending}>متابعة</Button>
         <p className="text-center text-sm text-muted">
-          جديد هنا؟ <Link to={`/register${location.search}`} className="font-semibold text-accent hover:underline">أنشئ حسابًا</Link>
+          {inviteToken(location.search)
+            ? <>جديد هنا؟ <Link to={`/register${location.search}`} className="font-semibold text-accent hover:underline">أنشئ حسابًا</Link></>
+            : 'الحسابات الجديدة تُنشأ برابط دعوة من مشرف مساحة العمل.'}
         </p>
       </form>
     </AuthShell>
   )
 }
 
+/** The invitation token when sign-in was reached from an invite link (?next=/invite/<token>). */
+export function inviteToken(search: string) {
+  return /^\/invite\/([0-9a-f]+)$/.exec(nextPath(search))?.[1] ?? null
+}
+
 export function RegisterPage() {
   const { setMe } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const token = inviteToken(location.search)
   const [form, setForm] = useState({ displayName: '', email: '', password: '' })
+  // Sign-up is by invitation: show who invited them and fix the email to the invited one.
+  const invite = useQuery({
+    queryKey: ['invite', token],
+    queryFn: () => api.get<InvitationPreview>(`/api/invitations/${token}`),
+    enabled: !!token,
+    retry: false,
+  })
+  useEffect(() => {
+    if (invite.data) setForm(f => ({ ...f, email: invite.data.email }))
+  }, [invite.data])
   const register = useMutation({
-    mutationFn: () => api.post<Me>('/api/auth/register', form),
+    mutationFn: () => api.post<Me>('/api/auth/register', { ...form, inviteToken: token }),
     onSuccess: me => { setMe(me); navigate(`/setup-2fa${location.search}`, { replace: true }) },
   })
   const fields = register.error instanceof ApiError ? register.error.fields : {}
   const fieldError = (...names: string[]) => names.map(n => fields[n] ? identityErrors[n] ?? fields[n]![0] : undefined).find(Boolean)
 
   return (
-    <AuthShell title="إنشاء حساب" subtitle="بعدها مباشرة بتفعّل التحقق الثنائي.">
+    <AuthShell
+      title="إنشاء حساب"
+      subtitle={invite.data
+        ? `وصلتك دعوة للانضمام إلى ${invite.data.workspaceName}. بعد إنشاء الحساب بتفعّل التحقق الثنائي.`
+        : 'بعدها مباشرة بتفعّل التحقق الثنائي.'}
+    >
+      {!token && (
+        <div className="mb-5 rounded-xl border border-line bg-surface-2 p-3.5 text-sm text-muted">
+          التسجيل في المنصة يكون برابط دعوة من مشرف مساحة العمل. إذا وصلك رابط، افتحه وأكمل التسجيل من خلاله.
+        </div>
+      )}
       <form onSubmit={e => { e.preventDefault(); register.mutate() }} className="space-y-4">
         <Field label="الاسم" value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })} required minLength={2} autoFocus autoComplete="name" />
         <Field label="البريد الإلكتروني للعمل" type="email" dir="ltr" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required autoComplete="email"
+          readOnly={!!invite.data} hint={invite.data ? 'البريد اللي وصلته الدعوة.' : undefined}
           error={fieldError('DuplicateEmail', 'DuplicateUserName', 'Email')} />
         <Field label="كلمة المرور" type="password" dir="ltr" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required minLength={10} autoComplete="new-password"
           hint="10 أحرف على الأقل. جملة قصيرة تكون كلمة مرور ممتازة." error={fieldError('PasswordTooShort', 'PasswordRequiresUniqueChars', 'Password')} />

@@ -30,6 +30,12 @@ export function useTasks() {
   return useQuery({ queryKey: keys.tasks(id), queryFn: () => api.get<Task[]>(`/api/workspaces/${id}/tasks`) })
 }
 
+/** Members see only their own cards; the server enforces it, this only shapes the wording. */
+export function useOwnCardsOnly() {
+  const { data } = useWorkspace()
+  return data?.myRole === 'Member'
+}
+
 export function useCan(min: Role) {
   const { data } = useWorkspace()
   return data ? roleRank[data.myRole] >= roleRank[min] : false

@@ -12,7 +12,7 @@ public static class Mapping
         t.TrackedMinutes,
         t.Assignees.Select(a => a.UserId).ToList(),
         t.Checklist.Count, t.Checklist.Count(c => c.Done), t.Comments.Count,
-        t.CreatedAt, t.UpdatedAt, t.CompletedAt));
+        t.CreatedAt, t.UpdatedAt, t.CompletedAt, t.CreatedById));
 
     public static ColumnDto ToDto(this BoardColumn c) => new(c.Id, c.Name, c.Kind, c.Position);
     public static ProjectDto ToDto(this Project p) => new(p.Id, p.Name, p.Color);

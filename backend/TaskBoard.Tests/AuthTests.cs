@@ -95,6 +95,11 @@ public class AuthTests(TestApp app) : IClassFixture<TestApp>
             new { email = first.Email, password = "another long password", displayName = "Copy" }));
         User.Status(HttpStatusCode.BadRequest, await app.NewClient().Post("/api/auth/register",
             new { email = "short@example.com", password = "short", displayName = "Short" }));
+        // The minimum is 8 characters: 7 is refused, 8 is accepted.
+        User.Status(HttpStatusCode.BadRequest, await app.NewClient().Post("/api/auth/register",
+            new { email = "seven@example.com", password = "abcd123", displayName = "Seven" }));
+        User.Status(HttpStatusCode.OK, await app.NewClient().Post("/api/auth/register",
+            new { email = "eight@example.com", password = "abcd1234", displayName = "Eight" }));
     }
 
     [Fact]

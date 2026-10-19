@@ -45,7 +45,7 @@ builder.Services.AddDbContext<AppDbContext>(o =>
 builder.Services.AddIdentity<AppUser, IdentityRole<Guid>>(o =>
     {
         o.User.RequireUniqueEmail = true;
-        o.Password.RequiredLength = 10;
+        o.Password.RequiredLength = 8;
         o.Password.RequiredUniqueChars = 4;
         o.Password.RequireDigit = false;
         o.Password.RequireLowercase = false;

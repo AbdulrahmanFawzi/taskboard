@@ -220,8 +220,8 @@ export function RegisterPage() {
         <Field label="البريد الإلكتروني للعمل" type="email" dir="ltr" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required autoComplete="email"
           readOnly={!!invite.data} hint={invite.data ? 'البريد اللي وصلته الدعوة.' : undefined}
           error={fieldError('DuplicateEmail', 'DuplicateUserName', 'Email')} />
-        <Field label="كلمة المرور" type="password" dir="ltr" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required minLength={10} autoComplete="new-password"
-          hint="10 أحرف على الأقل. جملة قصيرة تكون كلمة مرور ممتازة." error={fieldError('PasswordTooShort', 'PasswordRequiresUniqueChars', 'Password')} />
+        <Field label="كلمة المرور" type="password" dir="ltr" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required minLength={8} autoComplete="new-password"
+          hint="8 أحرف على الأقل." error={fieldError('PasswordTooShort', 'PasswordRequiresUniqueChars', 'Password')} />
         {Object.keys(fields).length === 0 && <ErrorNote error={register.error} />}
         <Button className="w-full" loading={register.isPending}>إنشاء الحساب</Button>
         <p className="text-center text-sm text-muted">

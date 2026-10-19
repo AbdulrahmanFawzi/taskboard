@@ -29,6 +29,6 @@ export const identityErrors: Record<string, string> = {
   DuplicateEmail: 'هذا البريد مسجّل مسبقًا.',
   DuplicateUserName: 'هذا البريد مسجّل مسبقًا.',
   InvalidEmail: 'صيغة البريد الإلكتروني غير صحيحة.',
-  PasswordTooShort: 'كلمة المرور قصيرة. استخدم 10 أحرف على الأقل.',
+  PasswordTooShort: 'كلمة المرور قصيرة. استخدم 8 أحرف على الأقل.',
   PasswordRequiresUniqueChars: 'كلمة المرور تحتاج 4 أحرف مختلفة على الأقل.',
 }

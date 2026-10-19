@@ -6,7 +6,7 @@ namespace TaskBoard.Api.Contracts;
 // ---- Auth ----
 public record RegisterRequest(
     [Required, EmailAddress, MaxLength(256)] string Email,
-    [Required, MinLength(10), MaxLength(128)] string Password,
+    [Required, MinLength(8), MaxLength(128)] string Password,
     [Required, MinLength(2), MaxLength(80)] string DisplayName,
     [MaxLength(64)] string? InviteToken = null);
 

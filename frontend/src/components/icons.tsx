@@ -7,7 +7,7 @@ import {
   CheckmarkSquare02Icon, Clock01Icon, Copy01Icon, DashboardSquare02Icon, Delete02Icon,
   Download04Icon, Flag02Icon, Folder01Icon, KanbanIcon, Key01Icon, Link01Icon, Logout03Icon,
   Menu01Icon, Message01Icon, Moon02Icon, Search01Icon, SecurityCheckIcon, Settings02Icon,
-  SmartPhone01Icon, Sun03Icon, TaskDaily01Icon, Tick02Icon, UserAdd01Icon, UserGroupIcon,
+  SidebarRight01Icon, SmartPhone01Icon, Sun03Icon, TaskDaily01Icon, Tick02Icon, UserAdd01Icon, UserGroupIcon,
   ArrowDown01Icon as ChevronDownIcon,
 } from '@hugeicons/core-free-icons'
 
@@ -47,6 +47,7 @@ export const Plus = make(Add01Icon)
 export const Search = make(Search01Icon)
 export const Settings = make(Settings02Icon)
 export const ShieldCheck = make(SecurityCheckIcon)
+export const PanelToggle = make(SidebarRight01Icon)
 export const Smartphone = make(SmartPhone01Icon)
 export const Sun = make(Sun03Icon)
 export const Trash2 = make(Delete02Icon)

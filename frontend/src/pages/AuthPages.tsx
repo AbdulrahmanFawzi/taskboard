@@ -10,13 +10,19 @@ import type { LoginResponse, Me, TwoFactorSetup } from '../lib/types'
 import { Button, ErrorNote, Field } from '../components/ui'
 import { identityErrors } from '../lib/i18n'
 
-export function Logo({ className }: { className?: string }) {
+/**
+ * Jeddah Municipality (أمانة جدة) logo, from jeddah.gov.sa. The dark file swaps the navy
+ * lettering for white so it stays readable on dark surfaces; `compact` shows the emblem only.
+ */
+export function Logo({ className, compact }: { className?: string; compact?: boolean }) {
+  const file = compact ? 'amanah-mark' : 'amanah-logo'
   return (
-    <span className={`inline-flex items-center gap-2 font-extrabold tracking-tight ${className ?? ''}`}>
-      <span className="grid size-8 place-items-center rounded-lg bg-accent text-white">
-        <svg viewBox="0 0 32 32" className="size-5" aria-hidden><rect x="5" y="6" width="6" height="20" rx="2" fill="currentColor" /><rect x="13" y="6" width="6" height="14" rx="2" fill="currentColor" opacity=".85" /><rect x="21" y="6" width="6" height="9" rx="2" fill="currentColor" opacity=".7" /></svg>
-      </span>
-      لوحة المهام
+    <span className={`inline-flex items-center gap-2.5 ${className ?? ''}`}>
+      <img src={`/brand/${file}.svg`} alt="أمانة جدة" className={`dark:hidden ${compact ? 'size-9' : 'h-11 w-auto'}`} />
+      <img src={`/brand/${file}-dark.svg`} alt="أمانة جدة" className={`hidden dark:block ${compact ? 'size-9' : 'h-11 w-auto'}`} />
+      {!compact && (
+        <span className="border-s border-line ps-2.5 text-sm font-bold leading-tight">لوحة<br />المهام</span>
+      )}
     </span>
   )
 }

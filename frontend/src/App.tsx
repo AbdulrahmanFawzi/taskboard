@@ -3,7 +3,7 @@ import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, use
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import {
-  BarChart3, ChevronDown, KanbanSquare, LayoutDashboard, LogOut, Menu, Moon, Plus, Settings, Sun, Users, X,
+  BarChart3, ChevronDown, KanbanSquare, LayoutDashboard, LogOut, Menu, Moon, PanelToggle, Plus, Settings, ShieldCheck, Sun, Users, X,
 } from './components/icons'
 import clsx from 'clsx'
 import { api } from './lib/api'
@@ -166,7 +166,23 @@ function Shell() {
   const location = useLocation()
   const [theme, setThemeState] = useState<Theme>(getTheme)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('tb.sidebar') === 'collapsed' } catch { return false }
+  })
   useRealtime(workspaceId!)
+
+  const toggleSidebar = () => setCollapsed(c => {
+    try { localStorage.setItem('tb.sidebar', c ? 'expanded' : 'collapsed') } catch { /* storage blocked */ }
+    return !c
+  })
+  // Ctrl+B / ⌘B folds the sidebar, as in most editors.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); toggleSidebar() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => { if (ws) applyAccent(ws.accentColor) }, [ws])
   useEffect(() => {
@@ -183,48 +199,65 @@ function Shell() {
     setThemeState(next)
   }
 
-  const sidebar = (
-    <aside className="flex h-full w-60 flex-col border-e border-line bg-surface p-4">
-      <div className="mb-6 flex items-center justify-between px-1">
-        <Logo />
+  /** The desktop sidebar can fold to an icon rail; the mobile drawer is always full width. */
+  const sidebar = (compact: boolean) => (
+    <aside className={clsx('flex h-full w-full flex-col border-e border-line bg-surface py-4', compact ? 'px-3' : 'px-4')}>
+      <div className={clsx('mb-6 flex items-center', compact ? 'justify-center' : 'justify-between px-1')}>
+        <Logo compact={compact} />
         <button className="rounded-lg p-1.5 text-muted hover:bg-surface-2 lg:hidden" onClick={() => setMenuOpen(false)} aria-label="إغلاق القائمة"><X size={18} /></button>
       </div>
-      <WorkspaceSwitcher current={ws} />
-      <p className="mt-6 mb-2 px-3 text-xs font-semibold text-muted">القائمة</p>
+      <WorkspaceSwitcher current={ws} compact={compact} />
+      {compact ? <div className="my-4 border-t border-line" /> : <p className="mt-6 mb-2 px-3 text-xs font-semibold text-muted">القائمة</p>}
       <nav className="space-y-0.5">
         {nav.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={label} to={to} end={end}
+            title={compact ? label : undefined}
+            aria-label={compact ? label : undefined}
             className={({ isActive }) => clsx(
-              'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold',
+              'relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold',
+              compact ? 'justify-center px-0' : 'px-3',
               isActive ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-surface-2 hover:text-ink',
             )}
           >
             {({ isActive }) => (
               <>
                 {isActive && <motion.span layoutId="nav-pill" className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-accent" />}
-                <Icon size={18} /> {label}
+                <Icon size={compact ? 20 : 18} /> {!compact && <span className="truncate">{label}</span>}
               </>
             )}
           </NavLink>
         ))}
       </nav>
-      <div className="mt-auto rounded-2xl bg-accent p-4 text-white">
-        <p className="text-sm font-bold">التحقق الثنائي مفعّل</p>
-        <p className="mt-1 text-xs text-white/85">باقي لك {me?.recoveryCodesLeft ?? 0} من رموز الاسترداد. تقدر تديرها من الإعدادات.</p>
-      </div>
+      {compact ? (
+        <div className="mt-auto grid place-items-center" title={`التحقق الثنائي مفعّل · باقي ${me?.recoveryCodesLeft ?? 0} من رموز الاسترداد`}>
+          <span className="grid size-10 place-items-center rounded-xl bg-accent text-white"><ShieldCheck size={20} /></span>
+        </div>
+      ) : (
+        <div className="mt-auto rounded-2xl bg-accent p-4 text-white">
+          <p className="text-sm font-bold">التحقق الثنائي مفعّل</p>
+          <p className="mt-1 text-xs text-white/85">باقي لك {me?.recoveryCodesLeft ?? 0} من رموز الاسترداد. تقدر تديرها من الإعدادات.</p>
+        </div>
+      )}
     </aside>
   )
 
   return (
     <div className="flex h-full">
-      <div className="hidden lg:block">{sidebar}</div>
+      <motion.div
+        className="relative z-10 hidden shrink-0 lg:block"
+        initial={false}
+        animate={{ width: collapsed ? 76 : 240 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 40 }}
+      >
+        {sidebar(collapsed)}
+      </motion.div>
       <AnimatePresence>
         {menuOpen && (
           <motion.div className="fixed inset-0 z-40 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
             <motion.div className="relative h-full w-60" initial={{ x: 260 }} animate={{ x: 0 }} exit={{ x: 260 }} transition={{ type: 'spring', stiffness: 400, damping: 40 }}>
-              {sidebar}
+              {sidebar(false)}
             </motion.div>
           </motion.div>
         )}
@@ -233,6 +266,15 @@ function Shell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-surface/80 px-4 backdrop-blur sm:px-6">
           <button className="rounded-lg p-2 text-muted hover:bg-surface-2 lg:hidden" onClick={() => setMenuOpen(true)} aria-label="فتح القائمة"><Menu size={20} /></button>
+          <button
+            onClick={toggleSidebar}
+            className="hidden rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-ink lg:inline-flex"
+            aria-label={collapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
+            aria-expanded={!collapsed}
+            title={`${collapsed ? 'توسيع' : 'طي'} القائمة (Ctrl+B)`}
+          >
+            <PanelToggle size={20} />
+          </button>
           <span className="truncate font-bold lg:hidden">{ws.name}</span>
           <div className="ms-auto flex items-center gap-1.5">
             <button onClick={toggleTheme} className="rounded-xl p-2.5 text-muted hover:bg-surface-2 hover:text-ink" aria-label="تبديل الوضع الليلي">
@@ -271,22 +313,24 @@ function Shell() {
   )
 }
 
-function WorkspaceSwitcher({ current }: { current: Workspace }) {
+function WorkspaceSwitcher({ current, compact }: { current: Workspace; compact?: boolean }) {
   const { data } = useWorkspaces()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
-      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2.5 rounded-xl border border-line px-3 py-2.5 text-start hover:bg-surface-2" aria-expanded={open}>
-        <span className="grid size-7 place-items-center rounded-lg text-xs font-extrabold text-white" style={{ background: current.accentColor }}>{current.name[0]?.toUpperCase()}</span>
-        <span className="min-w-0 flex-1 truncate text-sm font-bold">{current.name}</span>
-        <ChevronDown size={16} className={clsx('text-muted transition-transform', open && 'rotate-180')} />
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open}
+        title={compact ? current.name : undefined} aria-label={compact ? `مساحة العمل: ${current.name}` : undefined}
+        className={clsx('flex w-full items-center gap-2.5 rounded-xl border border-line py-2.5 text-start hover:bg-surface-2', compact ? 'justify-center px-0' : 'px-3')}>
+        <span className="grid size-7 shrink-0 place-items-center rounded-lg text-xs font-extrabold text-white" style={{ background: current.accentColor }}>{current.name[0]?.toUpperCase()}</span>
+        {!compact && <span className="min-w-0 flex-1 truncate text-sm font-bold">{current.name}</span>}
+        {!compact && <ChevronDown size={16} className={clsx('text-muted transition-transform', open && 'rotate-180')} />}
       </button>
       <AnimatePresence>
         {open && (
           <motion.div
             initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            className="absolute inset-x-0 top-full z-20 mt-1.5 rounded-xl border border-line bg-surface p-1.5 shadow-xl"
+            className={clsx('absolute top-full z-20 mt-1.5 rounded-xl border border-line bg-surface p-1.5 shadow-xl', compact ? 'start-0 w-60' : 'inset-x-0')}
           >
             {data?.map(w => (
               <button key={w.id} onClick={() => { setOpen(false); navigate(`/w/${w.id}`) }}

@@ -26,7 +26,9 @@ export function TaskModal({ taskId, onClose }: { taskId: string | null; onClose:
     <>
       <Modal open={!!taskId} onClose={requestClose} wide title="تفاصيل البطاقة">
         {taskId && (
+          // Keyed by card: a different card always gets a fresh form, never the previous card's draft.
           <TaskEditor
+            key={taskId}
             taskId={taskId}
             onDirtyChange={d => { dirty.current = d }}
             onCancel={requestClose}

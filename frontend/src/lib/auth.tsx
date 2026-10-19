@@ -39,9 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // A full reload to the plain sign-in page: nothing from this account stays in memory, and the
+  // next person to sign in on this machine is not sent to the page the last one was on.
   const signOut = async () => {
     await api.post('/api/auth/logout').catch(() => {})
-    setMe(null)
+    window.location.replace('/login')
   }
 
   return (

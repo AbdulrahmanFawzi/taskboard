@@ -86,18 +86,26 @@ export function CountUp({ value, decimals = 0, suffix = '' }: { value: number; d
   const ref = useRef<HTMLSpanElement>(null)
   const inView = useInView(ref, { once: true })
   const from = useRef(0)
+  const text = num(value, decimals) + suffix
+  // The real number is always in the page; counting is decoration on top. If the animation never
+  // runs (background tab, slow device, screen reader, print, reduced motion) the value is still right.
   useEffect(() => {
-    if (!inView || !ref.current) return
     const node = ref.current
+    if (!node) return
+    if (!inView || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      node.textContent = text
+      return
+    }
     const controls = animate(from.current, value, {
       duration: 1.1,
       ease: [0.16, 1, 0.3, 1],
       onUpdate: v => { node.textContent = num(v, decimals) + suffix },
+      onComplete: () => { node.textContent = text },
     })
     from.current = value
-    return () => controls.stop()
-  }, [inView, value, decimals, suffix])
-  return <span ref={ref} className="tabular-nums">0{suffix}</span>
+    return () => { controls.stop(); node.textContent = text }
+  }, [inView, value, decimals, suffix, text])
+  return <span ref={ref} className="tabular-nums">{text}</span>
 }
 
 export function Modal({ open, onClose, children, title, wide }: {

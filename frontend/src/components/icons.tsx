@@ -8,7 +8,7 @@ import {
   Download04Icon, Flag02Icon, Folder01Icon, KanbanIcon, Key01Icon, Link01Icon, Logout03Icon,
   Menu01Icon, Message01Icon, Moon02Icon, Search01Icon, SecurityCheckIcon, Settings02Icon,
   SidebarRight01Icon, SmartPhone01Icon, Sun03Icon, TaskDaily01Icon, Tick02Icon, UserAdd01Icon, UserGroupIcon,
-  ArrowDown01Icon as ChevronDownIcon,
+  ArrowDown01Icon as ChevronDownIcon, ArrowLeft01Icon, ArrowRight01Icon,
 } from '@hugeicons/core-free-icons'
 
 type IconProps = { size?: number; className?: string; strokeWidth?: number }
@@ -29,6 +29,8 @@ export const Check = make(Tick02Icon)
 export const CheckCircle2 = make(CheckmarkCircle02Icon)
 export const CheckSquare = make(CheckmarkSquare02Icon)
 export const ChevronDown = make(ChevronDownIcon)
+export const ChevronLeft = make(ArrowLeft01Icon)
+export const ChevronRight = make(ArrowRight01Icon)
 export const Clock = make(Clock01Icon)
 export const Copy = make(Copy01Icon)
 export const Download = make(Download04Icon)

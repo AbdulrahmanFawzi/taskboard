@@ -8,7 +8,7 @@ public static class Mapping
 {
     /// <summary>Projection used by every task list query, so the counts stay in SQL.</summary>
     public static IQueryable<TaskDto> ToDto(this IQueryable<TaskItem> q) => q.Select(t => new TaskDto(
-        t.Id, t.ColumnId, t.ProjectId, t.Title, t.Description, t.Tag, t.Priority, t.DueDate, t.Position,
+        t.Id, t.ColumnId, t.ProjectId, t.Title, t.Description ?? "", t.Tag, t.Priority, t.DueDate, t.Position,
         t.TrackedMinutes,
         t.Assignees.Select(a => a.UserId).ToList(),
         t.Checklist.Count, t.Checklist.Count(c => c.Done), t.Comments.Count,

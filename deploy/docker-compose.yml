@@ -6,31 +6,36 @@
 name: taskboard
 
 services:
-  db:
-    image: postgres:17.6-alpine
+  # Only for a rehearsal on a machine without Oracle (start with --profile bundled-db).
+  # Staging and production connect to the organisation's Oracle 19c through ORACLE_CONNECTION.
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    profiles: [bundled-db]
     restart: unless-stopped
     environment:
-      POSTGRES_DB: taskboard
-      POSTGRES_USER: taskboard
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
+      ORACLE_PASSWORD: ${BUNDLED_ORACLE_SYS_PASSWORD:-change-me}
+      APP_USER: taskboard
+      APP_USER_PASSWORD: ${BUNDLED_ORACLE_APP_PASSWORD:-change-me}
     volumes:
-      - dbdata:/var/lib/postgresql/data
+      - oradata:/opt/oracle/oradata
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U taskboard -d taskboard"]
+      test: ["CMD", "healthcheck.sh"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 30
+      start_period: 60s
     networks: [internal]
 
   api:
     image: ${REGISTRY:-ghcr.io/your-org}/taskboard-api:${TAG:-latest}
     build: { context: ../backend }
     restart: unless-stopped
-    depends_on:
-      db: { condition: service_healthy }
     environment:
       ASPNETCORE_ENVIRONMENT: ${APP_ENV:-Production}
-      ConnectionStrings__Default: Host=db;Port=5432;Database=taskboard;Username=taskboard;Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__Default: ${ORACLE_CONNECTION:?set ORACLE_CONNECTION in the env file}
+      Database__Provider: Oracle
+      Database__OracleSqlCompatibility: "19"
+      Database__ApplyMigrations: ${DB_APPLY_MIGRATIONS:-true}
       Security__RequireTwoFactor: "true"
       Security__AuthenticatorIssuer: ${AUTHENTICATOR_ISSUER:-TaskBoard}
       Security__SecureCookies: ${SECURE_COOKIES:-true}
@@ -61,7 +66,7 @@ services:
     networks: [internal]
 
 volumes:
-  dbdata:
+  oradata:
   caddydata:
   caddyconfig:
 

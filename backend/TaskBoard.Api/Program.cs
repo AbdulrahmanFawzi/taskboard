@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Oracle.EntityFrameworkCore.Infrastructure;
 using TaskBoard.Api.Data;
 using TaskBoard.Api.Domain;
 using TaskBoard.Api.Hubs;
@@ -27,13 +28,17 @@ var security = config.GetSection("Security").Get<SecurityOptions>() ?? new Secur
 var secureCookies = config.GetValue("Security:SecureCookies", !builder.Environment.IsDevelopment());
 
 // ---- Database ----
-var provider = config.GetValue("Database:Provider", "Postgres")!;
+var provider = config.GetValue("Database:Provider", "Oracle")!;
+// Production runs on Oracle 19c. Pinning the SQL dialect keeps EF from emitting anything newer
+// (such as the BOOLEAN type from 23ai), even when a developer points it at a newer server.
+var oracleCompat = config.GetValue("Database:OracleSqlCompatibility", "19")!;
 var connection = config.GetConnectionString("Default")
     ?? throw new InvalidOperationException("ConnectionStrings:Default is not set.");
 builder.Services.AddDbContext<AppDbContext>(o =>
 {
     if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase)) o.UseSqlite(connection);
-    else o.UseNpgsql(connection);
+    else o.UseOracle(connection, ora => ora.UseOracleSQLCompatibility(
+        oracleCompat == "23" ? OracleSQLCompatibility.DatabaseVersion23 : OracleSQLCompatibility.DatabaseVersion19));
 });
 
 // ---- Identity, cookies and 2FA ----
@@ -174,8 +179,37 @@ app.MapHealthChecks("/health");
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var startupLog = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    // The database server may still be starting, or briefly down for maintenance. Wait for it
+    // instead of failing; if it never answers, exit so the container restarts cleanly.
+    var attempts = config.GetValue("Database:StartupRetries", 30);
+    for (var attempt = 1; !db.Database.IsSqlite(); attempt++)
+    {
+        try
+        {
+            if (await db.Database.CanConnectAsync()) break;
+        }
+        catch (Exception e) when (attempt < attempts)
+        {
+            startupLog.LogWarning("Database not reachable yet (attempt {Attempt}/{Max}): {Error}", attempt, attempts, e.Message);
+        }
+        catch (Exception e)
+        {
+            startupLog.LogCritical(e, "Database not reachable after {Max} attempts; exiting", attempts);
+            return 1;
+        }
+        if (attempt >= attempts)
+        {
+            startupLog.LogCritical("Database not reachable after {Max} attempts; exiting", attempts);
+            return 1;
+        }
+        await Task.Delay(TimeSpan.FromSeconds(5));
+    }
+
     if (db.Database.IsSqlite()) await db.Database.EnsureCreatedAsync();
-    else await db.Database.MigrateAsync();
+    // DBAs often apply schema changes themselves from deploy/oracle/schema.sql; then this is off.
+    else if (config.GetValue("Database:ApplyMigrations", true)) await db.Database.MigrateAsync();
 }
 
 await app.RunAsync();

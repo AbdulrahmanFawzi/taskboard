@@ -170,7 +170,7 @@ public class TasksController(
         var task = await access.RequireTaskAsync(id, WorkspaceRole.Member);
         var item = await db.ChecklistItems.FirstOrDefaultAsync(c => c.Id == itemId && c.TaskId == id);
         if (item is null) return NotFound();
-        if (req.Text is not null) item.Text = req.Text.Trim();
+        if (!string.IsNullOrWhiteSpace(req.Text)) item.Text = req.Text.Trim();
         if (req.Done is not null) item.Done = req.Done.Value;
         task.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();

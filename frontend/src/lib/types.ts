@@ -69,6 +69,8 @@ export interface Dashboard {
   totalProjects: number
   activeTasks: number
   completedThisWeek: number
+  /** Cards finished on Friday or Saturday; included in completedThisWeek but not in the bars. */
+  weekendThisWeek: number
   overdue: number
   dueToday: number
   thisWeek: DayCount[]

@@ -69,11 +69,12 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2" title="هذا الأسبوع" subtitle="البطاقات اللي أنجزها الفريق كل يوم">
+        <Card className="lg:col-span-2" title="هذا الأسبوع" subtitle="البطاقات اللي أنجزها الفريق في أيام العمل (الأحد إلى الخميس)">
           <div className="mb-2 flex items-baseline gap-2">
             <span className="text-3xl font-bold"><CountUp value={data.completedThisWeek} /></span>
             <span className="text-sm text-muted">أُنجزت حتى الآن</span>
             {delta !== null && <span className={clsx('text-xs font-bold', delta >= 0 ? 'text-ok' : 'text-danger')}>{delta >= 0 ? '+' : ''}{delta}% مقارنة بالأسبوع الماضي</span>}
+            {data.weekendThisWeek > 0 && <span className="text-xs text-muted">(منها {data.weekendThisWeek} في الإجازة)</span>}
           </div>
           <div className="h-52">
             <ResponsiveContainer>

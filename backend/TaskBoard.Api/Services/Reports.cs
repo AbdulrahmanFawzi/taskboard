@@ -13,6 +13,8 @@ namespace TaskBoard.Api.Services;
 /// </summary>
 public class Reports(AppDbContext db)
 {
+    private const int WorkDaysPerWeek = 5;
+
     private record Row(
         Guid Id, Guid ColumnId, Guid? ProjectId, string Title, TaskPriority Priority, DateOnly? DueDate,
         int TrackedMinutes, DateTime CreatedAt, DateTime? StartedAt, DateTime? CompletedAt, List<Guid> Assignees);
@@ -22,13 +24,15 @@ public class Reports(AppDbContext db)
     {
         var offset = TimeSpan.FromMinutes(Math.Clamp(tzMinutes, -840, 840));
         var today = DateOnly.FromDateTime(DateTime.UtcNow + offset);
-        var weekStart = today.AddDays(-(((int)today.DayOfWeek + 6) % 7)); // Monday
+        // Saudi working week: Sunday to Thursday, Friday and Saturday off. The week runs Sunday to
+        // Saturday; the chart shows the five working days and weekend work is counted separately.
+        var weekStart = today.AddDays(-(int)today.DayOfWeek); // Sunday
         var rows = await LoadAsync(workspaceId);
 
         DateOnly Local(DateTime utc) => DateOnly.FromDateTime(utc + offset);
         var open = rows.Where(r => r.CompletedAt == null).ToList();
 
-        var thisWeek = Enumerable.Range(0, 7).Select(i => weekStart.AddDays(i))
+        var thisWeek = Enumerable.Range(0, WorkDaysPerWeek).Select(i => weekStart.AddDays(i))
             .Select(d => new DayCount(d, rows.Count(r => r.CompletedAt is { } c && Local(c) == d)))
             .ToList();
         var lastWeekTotal = rows.Count(r => r.CompletedAt is { } c && Local(c) >= weekStart.AddDays(-7) && Local(c) < weekStart);
@@ -51,7 +55,8 @@ public class Reports(AppDbContext db)
         return new DashboardResponse(
             TotalProjects: projects.Count,
             ActiveTasks: open.Count,
-            CompletedThisWeek: thisWeek.Sum(d => d.Count),
+            CompletedThisWeek: rows.Count(r => r.CompletedAt is { } c && Local(c) >= weekStart && Local(c) < weekStart.AddDays(7)),
+            WeekendThisWeek: rows.Count(r => r.CompletedAt is { } c && Local(c) >= weekStart.AddDays(WorkDaysPerWeek) && Local(c) < weekStart.AddDays(7)),
             Overdue: open.Count(r => r.DueDate < today),
             DueToday: open.Count(r => r.DueDate == today),
             ThisWeek: thisWeek,
@@ -85,11 +90,13 @@ public class Reports(AppDbContext db)
         IReadOnlyList<double> Spark(Func<List<Row>, double> f) =>
             buckets.Select(b => f(b.SelectMany(On).ToList())).ToList();
 
-        static double OnTime(List<Row> rs)
+        // Due dates are the viewer's calendar days, so the finish time is compared in their time
+        // zone too; in UTC a card finished at 01:00 in Riyadh would count as a day early.
+        double OnTime(List<Row> rs)
         {
             var dated = rs.Where(r => r.DueDate != null).ToList();
             if (dated.Count == 0) return 0;
-            return Math.Round(100.0 * dated.Count(r => DateOnly.FromDateTime(r.CompletedAt!.Value) <= r.DueDate) / dated.Count, 1);
+            return Math.Round(100.0 * dated.Count(r => Local(r.CompletedAt!.Value) <= r.DueDate) / dated.Count, 1);
         }
         static double Cycle(List<Row> rs) => rs.Count == 0 ? 0 :
             Math.Round(rs.Average(r => (r.CompletedAt!.Value - (r.StartedAt ?? r.CreatedAt)).TotalDays), 1);

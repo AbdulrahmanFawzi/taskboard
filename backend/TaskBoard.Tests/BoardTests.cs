@@ -1,4 +1,7 @@
 using System.Net;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaskBoard.Api.Data;
 using TaskBoard.Api.Contracts;
 using TaskBoard.Api.Domain;
 
@@ -144,8 +147,9 @@ public class BoardTests(TestApp app) : IClassFixture<TestApp>
         var dash = await owner.GetOk<DashboardResponse>($"/api/workspaces/{ws.Id}/dashboard?tz=180");
         Assert.Equal(5, dash.TotalProjects);
         Assert.Equal(14, dash.ActiveTasks);
-        Assert.Equal(7, dash.ThisWeek.Count);
-        Assert.Equal(DayOfWeek.Monday, dash.ThisWeek[0].Date.DayOfWeek);
+        Assert.Equal(5, dash.ThisWeek.Count);
+        Assert.Equal([DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday],
+            dash.ThisWeek.Select(d => d.Date.DayOfWeek));
         Assert.NotEmpty(dash.MyTasks);
 
         var stats = await owner.GetOk<AnalyticsResponse>($"/api/workspaces/{ws.Id}/analytics?range=30&tz=180");
@@ -159,6 +163,55 @@ public class BoardTests(TestApp app) : IClassFixture<TestApp>
 
         var csv = await owner.Http.GetStringAsync($"/api/workspaces/{ws.Id}/analytics/export?range=90");
         Assert.StartsWith("العنوان,المشروع", csv.TrimStart('\uFEFF'));
+    }
+
+    [Fact]
+    public async Task Week_shows_working_days_and_counts_weekend_work_apart()
+    {
+        var (owner, ws) = await NewWorkspace();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var sunday = today.AddDays(-(int)today.DayOfWeek);
+        var tuesday = sunday.AddDays(2);
+        var friday = sunday.AddDays(5);
+
+        foreach (var day in new[] { tuesday, friday })
+        {
+            var t = await owner.PostOk<TaskDto>($"/api/workspaces/{ws.Id}/tasks", new { title = $"Done {day}" });
+            await owner.PostOk<List<TaskDto>>($"/api/tasks/{t.Id}/move", new { columnId = ws.Columns[3].Id, index = 0 });
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var at = day.ToDateTime(new TimeOnly(12, 0), DateTimeKind.Utc);
+            await db.Tasks.Where(x => x.Id == t.Id).ExecuteUpdateAsync(u => u.SetProperty(x => x.CompletedAt, at));
+        }
+
+        var dash = await owner.GetOk<DashboardResponse>($"/api/workspaces/{ws.Id}/dashboard?tz=0");
+        Assert.Equal(sunday, dash.ThisWeek[0].Date);
+        Assert.Equal(1, dash.ThisWeek.Single(d => d.Date == tuesday).Count);
+        Assert.Equal(1, dash.ThisWeek.Sum(d => d.Count)); // Friday has no bar...
+        Assert.Equal(1, dash.WeekendThisWeek);           // ...but is counted as weekend work
+        Assert.Equal(2, dash.CompletedThisWeek);
+    }
+
+    [Fact]
+    public async Task On_time_rate_judges_the_finish_in_the_viewers_day()
+    {
+        var (owner, ws) = await NewWorkspace();
+        var due = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2));
+        var task = await owner.PostOk<TaskDto>($"/api/workspaces/{ws.Id}/tasks", new { title = "Late by Riyadh time", dueDate = due });
+        await owner.PostOk<List<TaskDto>>($"/api/tasks/{task.Id}/move", new { columnId = ws.Columns[3].Id, index = 0 });
+
+        // 22:30 UTC on the due date is 01:30 the next day in Riyadh (UTC+3): one day late there.
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var finished = due.ToDateTime(new TimeOnly(22, 30), DateTimeKind.Utc);
+            await db.Tasks.Where(t => t.Id == task.Id).ExecuteUpdateAsync(u => u.SetProperty(t => t.CompletedAt, finished));
+        }
+
+        var riyadh = await owner.GetOk<AnalyticsResponse>($"/api/workspaces/{ws.Id}/analytics?range=7&tz=180");
+        Assert.Equal(0, riyadh.OnTimeRate.Value);
+        var utc = await owner.GetOk<AnalyticsResponse>($"/api/workspaces/{ws.Id}/analytics?range=7&tz=0");
+        Assert.Equal(100, utc.OnTimeRate.Value);
     }
 
     [Fact]

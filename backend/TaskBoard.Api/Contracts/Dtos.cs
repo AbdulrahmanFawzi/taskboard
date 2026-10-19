@@ -89,7 +89,7 @@ public record CreateCommentRequest([Required, MaxLength(4000)] string Body);
 
 // ---- Dashboard & analytics ----
 public record DashboardResponse(
-    int TotalProjects, int ActiveTasks, int CompletedThisWeek, int Overdue, int DueToday,
+    int TotalProjects, int ActiveTasks, int CompletedThisWeek, int WeekendThisWeek, int Overdue, int DueToday,
     IReadOnlyList<DayCount> ThisWeek, int LastWeekTotal,
     IReadOnlyList<ProjectProgress> Projects,
     IReadOnlyList<TaskDto> MyTasks,

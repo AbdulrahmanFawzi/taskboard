@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
@@ -10,9 +10,9 @@ import { api } from './lib/api'
 import { useAuth } from './lib/auth'
 import { applyAccent, getTheme, keys, setTheme, useRealtime, useWorkspace, type Theme } from './lib/workspace'
 import type { InvitationPreview, Workspace, WorkspaceSummary } from './lib/types'
-import { Avatar, Button, ErrorNote, Field, PageLoader } from './components/ui'
+import { Avatar, Button, ErrorNote, Field, PageLoader, Spinner } from './components/ui'
 import { roleLabel } from './lib/i18n'
-import { LoginPage, Logo, RegisterPage, TwoFactorSetupPage } from './pages/AuthPages'
+import { LoginPage, Logo, nextPath, RegisterPage, TwoFactorSetupPage } from './pages/AuthPages'
 import { DashboardPage } from './pages/DashboardPage'
 import { BoardPage } from './pages/BoardPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
@@ -50,19 +50,23 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+// These guards redirect the moment sign-in state changes, often before the page's own navigate
+// call lands, so they must carry `next` along; otherwise an invite link is lost on the way.
 function GuestOnly({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth()
+  const { search } = useLocation()
   if (loading) return <PageLoader />
-  if (me?.sessionVerified) return <Navigate to="/" replace />
-  if (me && !me.twoFactorEnabled) return <Navigate to="/setup-2fa" replace />
+  if (me?.sessionVerified) return <Navigate to={nextPath(search)} replace />
+  if (me && !me.twoFactorEnabled) return <Navigate to={`/setup-2fa${search}`} replace />
   return <>{children}</>
 }
 
 function NeedsEnrolment({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth()
+  const { search } = useLocation()
   if (loading) return <PageLoader />
-  if (!me) return <Navigate to="/login" replace />
-  if (me.twoFactorEnabled) return <Navigate to="/" replace />
+  if (!me) return <Navigate to={`/login${search}`} replace />
+  if (me.twoFactorEnabled) return <Navigate to={nextPath(search)} replace />
   return <>{children}</>
 }
 
@@ -122,13 +126,30 @@ function InvitePage() {
   const preview = useQuery({ queryKey: ['invite', token], queryFn: () => api.get<InvitationPreview>(`/api/invitations/${token}`), retry: false })
   const accept = useMutation({
     mutationFn: () => api.post<WorkspaceSummary>(`/api/invitations/${token}/accept`),
-    onSuccess: ws => { qc.invalidateQueries({ queryKey: keys.workspaces }); navigate(`/w/${ws.id}`) },
+    onSuccess: ws => { qc.invalidateQueries({ queryKey: keys.workspaces }); navigate(`/w/${ws.id}`, { replace: true }) },
   })
+
+  // Opening your own invitation link is the acceptance: join at once and land in the workspace.
+  // The button below stays as a retry if this attempt fails.
+  const autoAccepted = useRef(false)
+  const invite = preview.data
+  // An already-used link is still tried: the server lets its owner back in if they are a member.
+  const canAccept = !!invite && (!invite.expired || invite.accepted) && !!me
+    && me.email.toLowerCase() === invite.email.toLowerCase()
+  useEffect(() => {
+    if (canAccept && !autoAccepted.current) {
+      autoAccepted.current = true
+      accept.mutate()
+    }
+  }, [canAccept, accept])
+
   return (
     <div className="grid min-h-full place-items-center p-6">
       <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 text-center shadow-card">
         <Logo />
-        {preview.isLoading ? <PageLoader /> : preview.error ? (
+        {preview.isLoading || (canAccept && !accept.isError) ? (
+          <div className="mt-8 flex flex-col items-center gap-3 text-sm text-muted"><Spinner />جاري الانضمام إلى مساحة العمل…</div>
+        ) : preview.error ? (
           <p className="mt-8 text-muted">رابط الدعوة هذا غير صالح.</p>
         ) : preview.data && (
           <>

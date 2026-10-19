@@ -78,13 +78,17 @@ function BoardIllustration() {
   )
 }
 
+/** Where to go after signing in: the `next` path from the query (an invite link, say), or home. */
+export function nextPath(search: string) {
+  const next = new URLSearchParams(search).get('next')
+  // Only follow same-site paths, never a full URL from the query string.
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
+}
+
 function useAfterLogin() {
   const navigate = useNavigate()
   const location = useLocation()
-  const next = new URLSearchParams(location.search).get('next')
-  // Only follow same-site paths, never a full URL from the query string.
-  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
-  return () => navigate(safeNext, { replace: true })
+  return () => navigate(nextPath(location.search), { replace: true })
 }
 
 export function LoginPage() {

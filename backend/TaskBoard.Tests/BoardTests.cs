@@ -102,7 +102,9 @@ public class BoardTests(TestApp app) : IClassFixture<TestApp>
         // Someone else cannot use an invitation meant for another email.
         User.Status(HttpStatusCode.Forbidden, await member.Post($"/api/invitations/{inviteViewer.Token}/accept", new { }));
         await viewer.PostOk<WorkspaceSummary>($"/api/invitations/{inviteViewer.Token}/accept", new { });
-        User.Status(HttpStatusCode.Conflict, await viewer.Post($"/api/invitations/{inviteViewer.Token}/accept", new { }));
+        // Opening the link again just takes the member back in, at their current role.
+        var again = await viewer.PostOk<WorkspaceSummary>($"/api/invitations/{inviteViewer.Token}/accept", new { });
+        Assert.Equal(WorkspaceRole.Viewer, again.Role);
 
         // Viewers read but cannot write.
         User.Status(HttpStatusCode.OK, await viewer.Http.GetAsync($"/api/workspaces/{ws.Id}/tasks"));
@@ -120,6 +122,10 @@ public class BoardTests(TestApp app) : IClassFixture<TestApp>
         User.Status(HttpStatusCode.Forbidden, await member.Patch($"/api/workspaces/{ws.Id}/members/{viewer.Id}", new { role = "Admin" }));
         User.Status(HttpStatusCode.NoContent, await member.Patch($"/api/workspaces/{ws.Id}/members/{viewer.Id}", new { role = "Member" }));
         User.Status(HttpStatusCode.Forbidden, await member.Http.DeleteAsync($"/api/workspaces/{ws.Id}/members/{owner.Id}"));
+
+        // Once removed, the old link does not let them back in.
+        User.Status(HttpStatusCode.NoContent, await owner.Http.DeleteAsync($"/api/workspaces/{ws.Id}/members/{viewer.Id}"));
+        User.Status(HttpStatusCode.Conflict, await viewer.Post($"/api/invitations/{inviteViewer.Token}/accept", new { }));
     }
 
     [Fact]

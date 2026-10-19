@@ -308,12 +308,20 @@ public class InvitationsController(AppDbContext db, UserManager<AppUser> users, 
         if (user is null) return Unauthorized();
         var invite = await db.Invitations.Include(i => i.Workspace).FirstOrDefaultAsync(i => i.Token == token);
         if (invite is null) return NotFound();
-        if (invite.AcceptedAt != null) return Problem("هذه الدعوة استُخدمت من قبل.", statusCode: 409);
-        if (invite.ExpiresAt < DateTime.UtcNow) return Problem("انتهت صلاحية الدعوة. اطلب دعوة جديدة.", statusCode: 410);
         if (!string.Equals(invite.Email, user.Email, StringComparison.OrdinalIgnoreCase))
             return Problem($"هذه الدعوة للبريد {invite.Email}. سجّل الدخول به عشان تقبلها.", statusCode: 403);
 
         var existing = await db.WorkspaceMembers.FirstOrDefaultAsync(m => m.WorkspaceId == invite.WorkspaceId && m.UserId == user.Id);
+        if (invite.AcceptedAt != null)
+        {
+            // Opening the same link again just takes its owner back in. Someone who was removed
+            // since cannot use the old link to rejoin.
+            if (existing is null) return Problem("هذه الدعوة استُخدمت من قبل.", statusCode: 409);
+            var members = await db.WorkspaceMembers.CountAsync(m => m.WorkspaceId == invite.WorkspaceId);
+            return new WorkspaceSummary(invite.WorkspaceId, invite.Workspace.Name, invite.Workspace.AccentColor, existing.Role, members);
+        }
+        if (invite.ExpiresAt < DateTime.UtcNow) return Problem("انتهت صلاحية الدعوة. اطلب دعوة جديدة.", statusCode: 410);
+
         if (existing is null)
         {
             db.WorkspaceMembers.Add(new WorkspaceMember { WorkspaceId = invite.WorkspaceId, UserId = user.Id, Role = invite.Role });

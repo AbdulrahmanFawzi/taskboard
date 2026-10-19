@@ -96,6 +96,7 @@ nano .env.staging
   عشان ما ينزل شي على production إلا بعد ما أحد يجرّب staging ويوافق.
 - Secrets: `STAGING_HOST`، `PRODUCTION_HOST`، `DEPLOY_USER`، `DEPLOY_SSH_KEY`.
 - Variables: `STAGING_DOMAIN`، `PRODUCTION_DOMAIN`.
+- بعد ما تجهّز السيرفرات والـ Secrets، أضف Variable اسمه `DEPLOY_ENABLED` وقيمته `true`. خطوات النشر تظل متوقفة (Skipped) لين تضيفه، والاختبارات وبناء الصور يشتغلون عادي.
 
 ### يدوياً على السيرفر
 

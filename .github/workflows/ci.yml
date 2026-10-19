@@ -35,22 +35,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: tag
-        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+        # Image names must be lowercase; the account name (AbdulrahmanFawzi) is not.
+        run: |
+          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
       - uses: docker/build-push-action@v6
         with:
           context: backend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/taskboard-api:${{ steps.tag.outputs.tag }}
+          tags: ${{ steps.tag.outputs.registry }}/taskboard-api:${{ steps.tag.outputs.tag }}
       - uses: docker/build-push-action@v6
         with:
           context: frontend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/taskboard-web:${{ steps.tag.outputs.tag }}
+          tags: ${{ steps.tag.outputs.registry }}/taskboard-web:${{ steps.tag.outputs.tag }}
 
+  # Deploys stay off until the servers exist: set the repository variable DEPLOY_ENABLED=true
+  # (Settings → Secrets and variables → Actions → Variables) once the secrets below are in place.
   deploy-staging:
     needs: images
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -70,6 +76,7 @@ jobs:
 
   deploy-production:
     needs: [images, deploy-staging]
+    if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
